@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
 import { logAudit } from '@/lib/audit';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,12 +23,12 @@ interface StudentSeat {
 interface SeatLayout {
   rows: number;
   cols: number;
-  seats: (string | null)[][]; // student ID or null
+  seats: (string | null)[][];
 }
 
 export default function MapeamentoSalaPage() {
-  const params = useParams();
-  const turmaId = params.turmaId as string;
+  const searchParams = useSearchParams();
+  const turmaId = searchParams.get('turmaId') || '';
   const { user } = useAuth();
 
   const [classroom, setClassroom] = useState<any>(null);
@@ -40,6 +39,7 @@ export default function MapeamentoSalaPage() {
   const [draggedStudent, setDraggedStudent] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!turmaId) return;
     loadData();
   }, [turmaId]);
 
@@ -71,7 +71,6 @@ export default function MapeamentoSalaPage() {
     }));
     setStudents(studentsWithPhotos);
 
-    // Load saved layout or create default
     if (seatMapRes.data?.layout_json) {
       const saved = seatMapRes.data.layout_json as any;
       setLayout({
@@ -80,11 +79,7 @@ export default function MapeamentoSalaPage() {
         seats: saved.seats ?? createEmptySeats(saved.rows ?? 5, saved.cols ?? 6),
       });
     } else {
-      setLayout({
-        rows: 5,
-        cols: 6,
-        seats: createEmptySeats(5, 6),
-      });
+      setLayout({ rows: 5, cols: 6, seats: createEmptySeats(5, 6) });
     }
 
     setLoading(false);
@@ -116,12 +111,8 @@ export default function MapeamentoSalaPage() {
 
   function handleDrop(rowIdx: number, colIdx: number) {
     if (!draggedStudent) return;
-
-    const newSeats = layout.seats.map((row) =>
-      row.map((id) => (id === draggedStudent ? null : id))
-    );
+    const newSeats = layout.seats.map((row) => row.map((id) => (id === draggedStudent ? null : id)));
     newSeats[rowIdx][colIdx] = draggedStudent;
-
     setLayout({ ...layout, seats: newSeats });
     setDraggedStudent(null);
   }
@@ -139,7 +130,6 @@ export default function MapeamentoSalaPage() {
 
   function changeGridSize(rows: number, cols: number) {
     const newSeats = createEmptySeats(rows, cols);
-    // Preserve existing assignments
     for (let r = 0; r < Math.min(rows, layout.rows); r++) {
       for (let c = 0; c < Math.min(cols, layout.cols); c++) {
         newSeats[r][c] = layout.seats[r]?.[c] ?? null;
@@ -156,34 +146,26 @@ export default function MapeamentoSalaPage() {
   async function handleSave() {
     if (!user) return;
     setSaving(true);
-
     await supabase.from('seat_maps').upsert({
       classroom_id: turmaId,
       layout_json: layout,
       updated_at: new Date().toISOString(),
       updated_by: user.id,
     });
-
     await logAudit('UPDATE', 'seat_maps', turmaId, { rows: layout.rows, cols: layout.cols });
     setSaving(false);
   }
 
   async function exportPDF() {
-    const doc = new jsPDF('l', 'mm', 'a4'); // landscape
+    const doc = new jsPDF('l', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 
     doc.setFontSize(16);
     doc.text('Mapeamento de Sala', pageWidth / 2, 12, { align: 'center' });
     doc.setFontSize(10);
-    doc.text(
-      `${classroom?.schools?.name ?? ''} — ${classroom?.year_grade} ${classroom?.label} (${classroom?.shift})`,
-      pageWidth / 2,
-      18,
-      { align: 'center' }
-    );
+    doc.text(`${classroom?.schools?.name ?? ''} — ${classroom?.year_grade} ${classroom?.label} (${classroom?.shift})`, pageWidth / 2, 18, { align: 'center' });
 
-    // Quadro/lousa
     doc.setFillColor(200, 200, 200);
     doc.rect(pageWidth / 2 - 40, 22, 80, 6, 'F');
     doc.setFontSize(8);
@@ -206,8 +188,7 @@ export default function MapeamentoSalaPage() {
 
         if (student) {
           doc.setFontSize(6);
-          const name =
-            student.name.length > 18 ? student.name.substring(0, 18) + '...' : student.name;
+          const name = student.name.length > 18 ? student.name.substring(0, 18) + '...' : student.name;
           doc.text(name, x + cellW / 2, y + cellH / 2, { align: 'center' });
           if (student.is_leader) {
             doc.setFontSize(5);
@@ -218,6 +199,10 @@ export default function MapeamentoSalaPage() {
     }
 
     doc.save(`mapeamento_sala_${classroom?.year_grade}_${classroom?.label}.pdf`);
+  }
+
+  if (!turmaId) {
+    return <div className="text-red-500">Parâmetro turmaId não encontrado na URL.</div>;
   }
 
   if (loading) {
@@ -231,89 +216,41 @@ export default function MapeamentoSalaPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Mapeamento de Sala</h1>
-          <p className="text-muted-foreground">
-            {classroom?.schools?.name} — {classroom?.year_grade} {classroom?.label}
-          </p>
+          <p className="text-muted-foreground">{classroom?.schools?.name} — {classroom?.year_grade} {classroom?.label}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={exportPDF}>
-            <Download className="mr-2 h-4 w-4" />
-            PDF
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="mr-2 h-4 w-4" />
-            {saving ? 'Salvando...' : 'Salvar'}
-          </Button>
+          <Button variant="outline" onClick={exportPDF}><Download className="mr-2 h-4 w-4" />PDF</Button>
+          <Button onClick={handleSave} disabled={saving}><Save className="mr-2 h-4 w-4" />{saving ? 'Salvando...' : 'Salvar'}</Button>
         </div>
       </div>
 
-      {/* Controles do Grid */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <Label>Filas:</Label>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => layout.rows > 1 && changeGridSize(layout.rows - 1, layout.cols)}
-              >
-                <Minus className="h-3 w-3" />
-              </Button>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => layout.rows > 1 && changeGridSize(layout.rows - 1, layout.cols)}><Minus className="h-3 w-3" /></Button>
               <span className="w-8 text-center font-mono">{layout.rows}</span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => changeGridSize(layout.rows + 1, layout.cols)}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeGridSize(layout.rows + 1, layout.cols)}><Plus className="h-3 w-3" /></Button>
             </div>
             <div className="flex items-center gap-2">
               <Label>Colunas:</Label>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => layout.cols > 1 && changeGridSize(layout.rows, layout.cols - 1)}
-              >
-                <Minus className="h-3 w-3" />
-              </Button>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => layout.cols > 1 && changeGridSize(layout.rows, layout.cols - 1)}><Minus className="h-3 w-3" /></Button>
               <span className="w-8 text-center font-mono">{layout.cols}</span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => changeGridSize(layout.rows, layout.cols + 1)}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeGridSize(layout.rows, layout.cols + 1)}><Plus className="h-3 w-3" /></Button>
             </div>
-            <Button variant="ghost" size="sm" onClick={resetLayout}>
-              <RotateCcw className="mr-1 h-3 w-3" />
-              Limpar
-            </Button>
+            <Button variant="ghost" size="sm" onClick={resetLayout}><RotateCcw className="mr-1 h-3 w-3" />Limpar</Button>
           </div>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_250px] gap-6">
-        {/* Grid da Sala */}
         <Card>
           <CardHeader>
-            <div className="bg-muted rounded-md py-2 text-center text-sm font-medium text-muted-foreground">
-              QUADRO / LOUSA
-            </div>
+            <div className="bg-muted rounded-md py-2 text-center text-sm font-medium text-muted-foreground">QUADRO / LOUSA</div>
           </CardHeader>
           <CardContent>
-            <div
-              className="grid gap-2"
-              style={{
-                gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))`,
-              }}
-            >
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))` }}>
               {layout.seats.map((row, rIdx) =>
                 row.map((studentId, cIdx) => {
                   const student = getStudentById(studentId);
@@ -329,22 +266,12 @@ export default function MapeamentoSalaPage() {
                       {student ? (
                         <>
                           {student.photoUrl ? (
-                            <img
-                              src={student.photoUrl}
-                              alt={student.name}
-                              className="h-10 w-10 rounded-full object-cover mb-1"
-                            />
+                            <img src={student.photoUrl} alt={student.name} className="h-10 w-10 rounded-full object-cover mb-1" />
                           ) : (
                             <User className="h-8 w-8 text-muted-foreground mb-1" />
                           )}
-                          <span className="text-[9px] text-center leading-tight truncate w-full">
-                            {student.name.split(' ').slice(0, 2).join(' ')}
-                          </span>
-                          {student.is_leader && (
-                            <Badge className="text-[8px] px-1 py-0 mt-0.5" variant="default">
-                              L
-                            </Badge>
-                          )}
+                          <span className="text-[9px] text-center leading-tight truncate w-full">{student.name.split(' ').slice(0, 2).join(' ')}</span>
+                          {student.is_leader && <Badge className="text-[8px] px-1 py-0 mt-0.5" variant="default">L</Badge>}
                         </>
                       ) : (
                         <span className="text-[10px] text-muted-foreground">Vazio</span>
@@ -357,34 +284,20 @@ export default function MapeamentoSalaPage() {
           </CardContent>
         </Card>
 
-        {/* Lista de alunos não posicionados */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">
-              Alunos sem lugar ({unassigned.length})
-            </CardTitle>
+            <CardTitle className="text-sm">Alunos sem lugar ({unassigned.length})</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 max-h-[500px] overflow-y-auto">
             {unassigned.length === 0 ? (
               <p className="text-xs text-muted-foreground">Todos posicionados!</p>
             ) : (
               unassigned.map((s) => (
-                <div
-                  key={s.id}
-                  draggable
-                  onDragStart={() => handleDragStart(s.id)}
-                  className="flex items-center gap-2 p-2 rounded-md border cursor-grab hover:bg-accent transition-colors"
-                >
+                <div key={s.id} draggable onDragStart={() => handleDragStart(s.id)} className="flex items-center gap-2 p-2 rounded-md border cursor-grab hover:bg-accent transition-colors">
                   {s.photoUrl ? (
-                    <img
-                      src={s.photoUrl}
-                      alt={s.name}
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
+                    <img src={s.photoUrl} alt={s.name} className="h-8 w-8 rounded-full object-cover" />
                   ) : (
-                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    </div>
+                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center"><User className="h-4 w-4 text-muted-foreground" /></div>
                   )}
                   <span className="text-xs font-medium truncate">{s.name}</span>
                 </div>

@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import React, { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
 import { logAudit } from '@/lib/audit';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -29,8 +29,8 @@ interface StudentWithPhoto {
 }
 
 export default function RegistroFotograficoPage() {
-  const params = useParams();
-  const turmaId = params.turmaId as string;
+  const searchParams = useSearchParams();
+  const turmaId = searchParams.get('turmaId') || '';
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -43,6 +43,7 @@ export default function RegistroFotograficoPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
+    if (!turmaId) return;
     loadData();
   }, [turmaId]);
 
@@ -90,14 +91,10 @@ export default function RegistroFotograficoPage() {
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Verificar tamanho (2MB)
     if (file.size > 2 * 1024 * 1024) {
       alert('A foto deve ter no máximo 2MB.');
       return;
     }
-
-    // Comprimir e pré-visualizar
     const reader = new FileReader();
     reader.onload = () => {
       setPreviewUrl(reader.result as string);
@@ -112,13 +109,11 @@ export default function RegistroFotograficoPage() {
     const ext = previewFile.name.split('.').pop() ?? 'jpg';
     const path = `${turmaId}/${uploadingFor}.${ext}`;
 
-    // Remover foto anterior se existir
     const student = students.find((s) => s.id === uploadingFor);
     if (student?.storage_path) {
       await supabase.storage.from('student-photos').remove([student.storage_path]);
     }
 
-    // Upload
     const { error: uploadError } = await supabase.storage
       .from('student-photos')
       .upload(path, previewFile, { upsert: true });
@@ -128,7 +123,6 @@ export default function RegistroFotograficoPage() {
       return;
     }
 
-    // Salvar referência
     await supabase
       .from('student_photos')
       .upsert({
@@ -149,7 +143,6 @@ export default function RegistroFotograficoPage() {
 
     const newValue = !student[field];
 
-    // Se ativando, desativar outros do mesmo campo
     if (newValue) {
       const otherIds = students.filter((s) => s.id !== studentId && s[field]).map((s) => s.id);
       if (otherIds.length > 0) {
@@ -197,7 +190,6 @@ export default function RegistroFotograficoPage() {
         y = 15;
       }
 
-      // Foto placeholder ou imagem
       doc.setDrawColor(200);
       doc.rect(x + 5, y, 30, 35);
 
@@ -214,12 +206,10 @@ export default function RegistroFotograficoPage() {
         doc.text('Sem foto', x + 12, y + 18);
       }
 
-      // Nome
       doc.setFontSize(7);
       const displayName = s.name.length > 20 ? s.name.substring(0, 20) + '...' : s.name;
       doc.text(displayName, x + 20, y + 40, { align: 'center' });
 
-      // Badge líder
       if (s.is_leader) {
         doc.setFontSize(6);
         doc.text('LÍDER', x + 20, y + 44, { align: 'center' });
@@ -254,6 +244,10 @@ export default function RegistroFotograficoPage() {
     });
   }
 
+  if (!turmaId) {
+    return <div className="text-red-500">Parâmetro turmaId não encontrado na URL.</div>;
+  }
+
   if (loading) {
     return <div className="animate-pulse text-muted-foreground">Carregando...</div>;
   }
@@ -280,17 +274,12 @@ export default function RegistroFotograficoPage() {
             className="group relative overflow-hidden hover:shadow-md transition-shadow"
           >
             <CardContent className="p-3 text-center">
-              {/* Foto */}
               <div
                 className="relative mx-auto mb-2 h-32 w-28 rounded-md overflow-hidden bg-muted cursor-pointer"
                 onClick={() => openUploadDialog(s.id)}
               >
                 {s.photoUrl ? (
-                  <img
-                    src={s.photoUrl}
-                    alt={s.name}
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={s.photoUrl} alt={s.name} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full items-center justify-center">
                     <User className="h-12 w-12 text-muted-foreground" />
@@ -301,26 +290,17 @@ export default function RegistroFotograficoPage() {
                 </div>
               </div>
 
-              {/* Nome */}
-              <p className="text-xs font-medium truncate" title={s.name}>
-                {s.name}
-              </p>
+              <p className="text-xs font-medium truncate" title={s.name}>{s.name}</p>
 
-              {/* Badges */}
               <div className="mt-1 flex justify-center gap-1 flex-wrap">
                 {s.is_leader && (
-                  <Badge variant="default" className="text-[10px] px-1.5 py-0">
-                    Líder
-                  </Badge>
+                  <Badge variant="default" className="text-[10px] px-1.5 py-0">Líder</Badge>
                 )}
                 {s.is_vice_leader && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    Vice-Líder
-                  </Badge>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Vice-Líder</Badge>
                 )}
               </div>
 
-              {/* Ações */}
               <div className="mt-2 flex justify-center gap-1">
                 <Button
                   variant={s.is_leader ? 'default' : 'ghost'}
@@ -346,7 +326,6 @@ export default function RegistroFotograficoPage() {
         ))}
       </div>
 
-      {/* Upload Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -362,11 +341,7 @@ export default function RegistroFotograficoPage() {
 
             {previewUrl ? (
               <div className="flex justify-center">
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className="max-h-64 rounded-lg border object-contain"
-                />
+                <img src={previewUrl} alt="Preview" className="max-h-64 rounded-lg border object-contain" />
               </div>
             ) : (
               <div
@@ -393,9 +368,7 @@ export default function RegistroFotograficoPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleUpload} disabled={!previewFile}>
               <Upload className="mr-2 h-4 w-4" />
               Enviar Foto

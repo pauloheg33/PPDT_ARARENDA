@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
 import { logAudit } from '@/lib/audit';
@@ -12,13 +12,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Save, Check, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
@@ -119,9 +112,9 @@ const fieldLabels: Record<string, string> = {
 };
 
 export default function FichaBiograficaPage() {
-  const params = useParams();
-  const turmaId = params.turmaId as string;
-  const alunoId = params.alunoId as string;
+  const searchParams = useSearchParams();
+  const turmaId = searchParams.get('turmaId') || '';
+  const alunoId = searchParams.get('alunoId') || '';
   const { user, profile } = useAuth();
   const router = useRouter();
 
@@ -135,6 +128,7 @@ export default function FichaBiograficaPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!alunoId) return;
     async function load() {
       const [studentRes, bioRes] = await Promise.all([
         supabase.from('students').select('*').eq('id', alunoId).single(),
@@ -212,6 +206,10 @@ export default function FichaBiograficaPage() {
     if (total === 0) return 0;
     const filled = Object.values(fields).filter((v) => v.trim() !== '').length;
     return Math.round((filled / total) * 100);
+  }
+
+  if (!turmaId || !alunoId) {
+    return <div className="text-red-500">Parâmetros turmaId e alunoId são obrigatórios na URL.</div>;
   }
 
   if (loading) {

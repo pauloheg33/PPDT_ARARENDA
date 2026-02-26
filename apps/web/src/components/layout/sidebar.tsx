@@ -137,7 +137,7 @@ export function Sidebar() {
                   Minha Turma
                 </div>
                 <Link
-                  href={`/dt/turma/${profile.classroom_id}/liberacao`}
+                  href={`/dt/liberacao?turmaId=${profile.classroom_id}`}
                   onClick={() => setOpen(false)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
@@ -150,7 +150,7 @@ export function Sidebar() {
                   Liberar/Bloquear Ficha
                 </Link>
                 <Link
-                  href={`/dt/turma/${profile.classroom_id}/registro-fotografico`}
+                  href={`/dt/registro-fotografico?turmaId=${profile.classroom_id}`}
                   onClick={() => setOpen(false)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
@@ -163,7 +163,7 @@ export function Sidebar() {
                   Registro Fotográfico
                 </Link>
                 <Link
-                  href={`/dt/turma/${profile.classroom_id}/mapeamento-sala`}
+                  href={`/dt/mapeamento-sala?turmaId=${profile.classroom_id}`}
                   onClick={() => setOpen(false)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
@@ -176,7 +176,7 @@ export function Sidebar() {
                   Mapeamento de Sala
                 </Link>
                 <Link
-                  href={`/dt/turma/${profile.classroom_id}/relatorios`}
+                  href={`/dt/relatorios?turmaId=${profile.classroom_id}`}
                   onClick={() => setOpen(false)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',

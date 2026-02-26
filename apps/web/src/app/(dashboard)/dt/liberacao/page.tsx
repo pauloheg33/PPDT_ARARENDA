@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
 import { logAudit } from '@/lib/audit';
@@ -19,8 +19,8 @@ import {
 import { Lock, Unlock, AlertTriangle } from 'lucide-react';
 
 export default function LiberacaoPage() {
-  const params = useParams();
-  const turmaId = params.turmaId as string;
+  const searchParams = useSearchParams();
+  const turmaId = searchParams.get('turmaId') || '';
   const { user } = useAuth();
   const [locked, setLocked] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -28,6 +28,7 @@ export default function LiberacaoPage() {
   const [classroom, setClassroom] = useState<any>(null);
 
   useEffect(() => {
+    if (!turmaId) return;
     async function load() {
       const [lockRes, classRes] = await Promise.all([
         supabase.from('access_locks').select('*').eq('classroom_id', turmaId).single(),
@@ -59,6 +60,10 @@ export default function LiberacaoPage() {
       });
     }
     setConfirmOpen(false);
+  }
+
+  if (!turmaId) {
+    return <div className="text-red-500">Parâmetro turmaId não encontrado na URL.</div>;
   }
 
   if (loading) {
