@@ -32,12 +32,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function fetchProfile(userId: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
-      .single();
-    setProfile(data as Profile | null);
+      .maybeSingle();
+    if (error) {
+      console.error('Erro ao buscar perfil:', error.message);
+      setProfile(null);
+    } else {
+      setProfile(data as Profile | null);
+    }
   }
 
   async function refreshProfile() {
