@@ -1,0 +1,6 @@
+nome_completo,data_nascimento,codigo_matricula,ano_serie,turma,turno,nome_responsavel,telefone_responsavel,email_responsavel,cpf_responsavel,endereco
+Maria da Silva,2012-05-14,20250001,6º Ano,A,Manhã,José da Silva,(88) 99999-0001,jose.silva@email.com,123.456.789-00,"Rua das Flores, 10, Centro"
+João Santos,2011-08-22,20250002,6º Ano,A,Manhã,Ana Santos,(88) 99999-0002,ana.santos@email.com,234.567.890-11,"Av. Principal, 55, Bairro Novo"
+Ana Oliveira,2012-01-10,20250003,6º Ano,A,Manhã,Pedro Oliveira,(88) 99999-0003,,345.678.901-22,"Trav. do Rio, 3, Sede"
+Pedro Lima,2011-12-03,20250004,7º Ano,A,Manhã,Francisca Lima,(88) 99999-0004,fran.lima@email.com,456.789.012-33,"Sítio Boa Vista, s/n, Zona Rural"
+Francisca Souza,2012-09-17,20250005,7º Ano,A,Manhã,Raimundo Souza,(88) 99999-0005,,567.890.123-44,"Rua Nova, 88, Centro"
