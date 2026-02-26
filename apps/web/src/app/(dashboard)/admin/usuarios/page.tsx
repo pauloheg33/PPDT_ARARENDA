@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
 import { logAudit } from '@/lib/audit';
 import { ROLES, ROLE_LABELS, type Role } from '@/lib/roles';
@@ -78,10 +78,8 @@ export default function UsuariosPage() {
   async function handleCreate() {
     if (!form.email || !form.password || !form.full_name) return;
 
-    // Criar usuário no Auth via admin (ou signup normal)
-    // Nota: Em produção, usar Supabase Admin API ou Edge Function.
-    // Aqui usamos signUp que cria o usuário diretamente.
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // Criar usuário usando cliente separado (não afeta sessão do admin)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
       email: form.email,
       password: form.password,
       options: {
