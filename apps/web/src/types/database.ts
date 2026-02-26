@@ -221,7 +221,13 @@ export interface Database {
           actor_user_id: string;
           metadata?: Json;
         };
-        Update: Record<string, never>;
+        Update: {
+          action?: string;
+          entity?: string;
+          entity_id?: string;
+          actor_user_id?: string;
+          metadata?: Json;
+        };
       };
     };
     Views: {
