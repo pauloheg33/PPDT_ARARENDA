@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
@@ -111,7 +111,7 @@ const fieldLabels: Record<string, string> = {
   observacoes_gerais: 'Observações gerais',
 };
 
-export default function FichaBiograficaPage() {
+function FichaBiograficaPageContent() {
   const searchParams = useSearchParams();
   const turmaId = searchParams.get('turmaId') || '';
   const alunoId = searchParams.get('alunoId') || '';
@@ -312,5 +312,13 @@ export default function FichaBiograficaPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function FichaBiograficaPage() {
+  return (
+    <Suspense fallback={<div className="animate-pulse text-muted-foreground">Carregando...</div>}>
+      <FichaBiograficaPageContent />
+    </Suspense>
   );
 }

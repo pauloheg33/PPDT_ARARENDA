@@ -234,7 +234,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Link href={`/dt/turma/${profile.classroom_id}/liberacao`}>
+              <Link href={`/dt/liberacao?turmaId=${profile.classroom_id}`}>
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <Unlock className="h-4 w-4" />
                   Liberação de Fichas
@@ -245,19 +245,19 @@ export default function DashboardPage() {
                   )}
                 </Button>
               </Link>
-              <Link href={`/dt/turma/${profile.classroom_id}/registro-fotografico`}>
+              <Link href={`/dt/registro-fotografico?turmaId=${profile.classroom_id}`}>
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <Camera className="h-4 w-4" />
                   Registro Fotográfico
                 </Button>
               </Link>
-              <Link href={`/dt/turma/${profile.classroom_id}/mapeamento-sala`}>
+              <Link href={`/dt/mapeamento-sala?turmaId=${profile.classroom_id}`}>
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <MapPin className="h-4 w-4" />
                   Mapeamento de Sala
                 </Button>
               </Link>
-              <Link href={`/dt/turma/${profile.classroom_id}/relatorios`}>
+              <Link href={`/dt/relatorios?turmaId=${profile.classroom_id}`}>
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <FileText className="h-4 w-4" />
                   Relatórios
@@ -273,7 +273,7 @@ export default function DashboardPage() {
                   {dtStudents.slice(0, 10).map((s) => (
                     <Link
                       key={s.id}
-                      href={`/dt/turma/${profile.classroom_id}/ficha-biografica/${s.id}`}
+                      href={`/dt/ficha-biografica?turmaId=${profile.classroom_id}&alunoId=${s.id}`}
                     >
                       <Badge variant="outline" className="cursor-pointer hover:bg-primary/10">
                         {s.name.split(' ')[0]}

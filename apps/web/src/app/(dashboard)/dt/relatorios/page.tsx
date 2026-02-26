@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ interface StatsData {
   percentage: number;
 }
 
-export default function RelatoriosPage() {
+function RelatoriosPageContent() {
   const searchParams = useSearchParams();
   const turmaId = searchParams.get('turmaId') || '';
 
@@ -294,5 +294,13 @@ export default function RelatoriosPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function RelatoriosPage() {
+  return (
+    <Suspense fallback={<div className="animate-pulse text-muted-foreground">Carregando...</div>}>
+      <RelatoriosPageContent />
+    </Suspense>
   );
 }

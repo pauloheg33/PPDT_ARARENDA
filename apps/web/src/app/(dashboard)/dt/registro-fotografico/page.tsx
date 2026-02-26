@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { Suspense, useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
@@ -28,7 +28,7 @@ interface StudentWithPhoto {
   storage_path: string | null;
 }
 
-export default function RegistroFotograficoPage() {
+function RegistroFotograficoPageContent() {
   const searchParams = useSearchParams();
   const turmaId = searchParams.get('turmaId') || '';
   const { user } = useAuth();
@@ -377,5 +377,13 @@ export default function RegistroFotograficoPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function RegistroFotograficoPage() {
+  return (
+    <Suspense fallback={<div className="animate-pulse text-muted-foreground">Carregando...</div>}>
+      <RegistroFotograficoPageContent />
+    </Suspense>
   );
 }

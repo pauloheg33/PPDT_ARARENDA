@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Lock, Unlock, AlertTriangle } from 'lucide-react';
 
-export default function LiberacaoPage() {
+function LiberacaoPageContent() {
   const searchParams = useSearchParams();
   const turmaId = searchParams.get('turmaId') || '';
   const { user } = useAuth();
@@ -175,5 +175,13 @@ export default function LiberacaoPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function LiberacaoPage() {
+  return (
+    <Suspense fallback={<div className="animate-pulse text-muted-foreground">Carregando...</div>}>
+      <LiberacaoPageContent />
+    </Suspense>
   );
 }
