@@ -29,6 +29,17 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('apps/web/package-lock.json') }}-${{ hashFiles('apps/web/**/*.ts', 'apps/web/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('apps/web/package-lock.json') }}-
+
       - name: Install dependencies
         run: npm install
 
@@ -40,6 +51,9 @@ jobs:
 
       - name: Add .nojekyll
         run: touch out/.nojekyll
+
+      - name: Copy 404.html
+        run: cp public/404.html out/404.html 2>/dev/null || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
