@@ -78,12 +78,18 @@ export default function UsuariosPage() {
   async function handleCreate() {
     if (!form.email || !form.password || !form.full_name) return;
 
-    // Criar usuário usando cliente separado (não afeta sessão do admin)
+    // signUp passa role, escola e turma nos metadados.
+    // O trigger handle_new_user() no banco cria o profile automaticamente.
     const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
       email: form.email,
       password: form.password,
       options: {
-        data: { full_name: form.full_name },
+        data: {
+          full_name: form.full_name,
+          role: form.role,
+          school_id: form.school_id || '',
+          classroom_id: form.classroom_id || '',
+        },
       },
     });
 
@@ -92,26 +98,8 @@ export default function UsuariosPage() {
       return;
     }
 
-    const { error: profileError } = await supabase.from('profiles').insert({
-      user_id: authData.user.id,
-      role: form.role,
-      full_name: form.full_name,
-      school_id: form.school_id || null,
-      classroom_id: form.classroom_id || null,
-    });
-
-    if (profileError) {
-      alert(`Erro ao criar perfil: ${profileError.message}`);
-      return;
-    }
-
-    // Se DT, atribuir turma
-    if (form.role === 'DT' && form.classroom_id) {
-      await supabase
-        .from('classrooms')
-        .update({ dt_user_id: authData.user.id })
-        .eq('id', form.classroom_id);
-    }
+    // Aguardar o trigger criar o profile
+    await new Promise((r) => setTimeout(r, 1000));
 
     await logAudit('CREATE', 'profiles', authData.user.id, {
       role: form.role,
@@ -119,6 +107,7 @@ export default function UsuariosPage() {
     });
 
     setDialogOpen(false);
+    setForm({ email: '', password: '', full_name: '', role: 'DT', school_id: '', classroom_id: '' });
     fetchAll();
   }
 
