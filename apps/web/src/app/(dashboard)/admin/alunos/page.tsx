@@ -135,10 +135,10 @@ export default function AlunosPage() {
     };
 
     if (editing) {
-      const { error } = await supabase.from('students').update(payload).eq('id', editing.id);
+      const { error } = await supabase.from('students').update(payload as any).eq('id', editing.id);
       if (!error) await logAudit('UPDATE', 'students', editing.id, { name: form.name });
     } else {
-      const { data, error } = await supabase.from('students').insert(payload).select().single();
+      const { data, error } = await supabase.from('students').insert(payload as any).select().single();
       if (!error && data) {
         await logAudit('CREATE', 'students', data.id, { name: form.name });
         // Criar bio_form vazio
