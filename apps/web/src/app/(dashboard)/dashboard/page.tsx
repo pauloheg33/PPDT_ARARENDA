@@ -31,7 +31,7 @@ interface Stats {
 }
 
 export default function DashboardPage() {
-  const { profile, user } = useAuth();
+  const { profile, user, signOut } = useAuth();
   const [stats, setStats] = useState<Stats>({
     totalSchools: 0,
     totalClassrooms: 0,
@@ -139,6 +139,15 @@ export default function DashboardPage() {
 {`INSERT INTO public.profiles (user_id, role, full_name)
 VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
         </pre>
+        <Button
+          variant="outline"
+          onClick={async () => {
+            await signOut();
+            window.location.href = '/PPDT_ARARENDA/login';
+          }}
+        >
+          Voltar ao Login
+        </Button>
       </div>
     );
   }
