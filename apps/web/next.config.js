@@ -5,9 +5,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Para GitHub Pages com repo name como base path, descomente:
-  // basePath: '/PPDT_ARARENDA',
-  // assetPrefix: '/PPDT_ARARENDA/',
+  // GitHub Pages com repo name como base path
+  basePath: '/PPDT_ARARENDA',
+  assetPrefix: '/PPDT_ARARENDA/',
 };
 
 module.exports = nextConfig;
