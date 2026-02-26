@@ -224,5 +224,36 @@ export interface Database {
         Update: never;
       };
     };
+    Views: {
+      v_classroom_stats: {
+        Row: {
+          classroom_id: string;
+          school_id: string;
+          school_name: string;
+          year_grade: string;
+          label: string;
+          shift: string;
+          total_students: number;
+          bio_completed: number;
+          bio_pending: number;
+          photos_uploaded: number;
+          photos_missing: number;
+        };
+      };
+      v_classroom_characterization: {
+        Row: {
+          classroom_id: string;
+          student_id: string;
+          student_name: string;
+          birthdate: string | null;
+          responsible_name: string | null;
+          status: string;
+          sections_json: Json;
+          bio_completed: boolean;
+        };
+      };
+    };
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
   };
 }
