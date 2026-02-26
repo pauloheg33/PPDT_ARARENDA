@@ -259,7 +259,7 @@ export interface Database {
         };
       };
     };
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
+    Functions: {};
+    Enums: {};
   };
 }

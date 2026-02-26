@@ -95,15 +95,14 @@ export default function DashboardPage() {
           const [studentsListRes, lockRes] = await Promise.all([
             supabase
               .from('students')
-              .select('id, full_name, enrollment_code')
+              .select('id, name, enrollment_code')
               .eq('classroom_id', classroomId)
               .eq('status', 'ATIVO')
-              .order('full_name'),
+              .order('name'),
             supabase
               .from('access_locks')
               .select('*')
               .eq('classroom_id', classroomId)
-              .eq('feature', 'ficha_biografica')
               .single(),
           ]);
           setDtStudents(studentsListRes.data ?? []);
@@ -240,8 +239,8 @@ export default function DashboardPage() {
                   <Unlock className="h-4 w-4" />
                   Liberação de Fichas
                   {lockStatus && (
-                    <Badge variant={lockStatus.is_locked ? 'destructive' : 'success'} className="ml-auto">
-                      {lockStatus.is_locked ? 'Bloq.' : 'Liber.'}
+                    <Badge variant={lockStatus.bio_form_locked ? 'destructive' : 'success'} className="ml-auto">
+                      {lockStatus.bio_form_locked ? 'Bloq.' : 'Liber.'}
                     </Badge>
                   )}
                 </Button>
@@ -277,7 +276,7 @@ export default function DashboardPage() {
                       href={`/dt/turma/${profile.classroom_id}/ficha-biografica/${s.id}`}
                     >
                       <Badge variant="outline" className="cursor-pointer hover:bg-primary/10">
-                        {s.full_name.split(' ')[0]}
+                        {s.name.split(' ')[0]}
                         <ArrowRight className="ml-1 h-3 w-3" />
                       </Badge>
                     </Link>
