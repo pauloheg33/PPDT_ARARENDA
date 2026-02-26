@@ -31,7 +31,7 @@ interface Stats {
 }
 
 export default function DashboardPage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [stats, setStats] = useState<Stats>({
     totalSchools: 0,
     totalClassrooms: 0,
@@ -115,11 +115,32 @@ export default function DashboardPage() {
       }
     }
 
-    if (profile) fetchStats();
+    if (profile) {
+      fetchStats();
+    } else if (profile === null) {
+      // profile é null — pode não existir no banco
+      setLoading(false);
+    }
   }, [profile]);
 
   if (loading) {
     return <div className="animate-pulse text-muted-foreground">Carregando dashboard...</div>;
+  }
+
+  if (!profile) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold text-destructive">Perfil não encontrado</h1>
+        <p className="text-muted-foreground">
+          Seu usuário não possui um registro na tabela <code>profiles</code>.<br />
+          Peça ao administrador para criar seu perfil ou execute no SQL Editor do Supabase:
+        </p>
+        <pre className="rounded bg-muted p-4 text-sm overflow-auto">
+{`INSERT INTO public.profiles (user_id, role, full_name)
+VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
+        </pre>
+      </div>
+    );
   }
 
   const role = profile?.role;

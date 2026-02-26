@@ -32,16 +32,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function fetchProfile(userId: string) {
+    console.log('[Auth] Buscando perfil para user_id:', userId);
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
       .maybeSingle();
     if (error) {
-      console.error('Erro ao buscar perfil:', error.message);
+      console.error('[Auth] Erro ao buscar perfil:', error.message, error);
+      setProfile(null);
+    } else if (!data) {
+      console.warn('[Auth] Nenhum perfil encontrado para user_id:', userId);
       setProfile(null);
     } else {
-      setProfile(data as Profile | null);
+      console.log('[Auth] Perfil carregado:', data.role, data.full_name);
+      setProfile(data as Profile);
     }
   }
 
