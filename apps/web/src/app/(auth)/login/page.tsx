@@ -23,7 +23,15 @@ export default function LoginPage() {
 
     const { error: err } = await signIn(email, password);
     if (err) {
-      setError('E-mail ou senha inválidos.');
+      console.error('Login error:', err);
+      const msg = (err as any)?.message || '';
+      if (msg.includes('Email not confirmed')) {
+        setError('E-mail não confirmado. Desative "Confirm email" nas configurações do Supabase Auth.');
+      } else if (msg.includes('Invalid login credentials')) {
+        setError('E-mail ou senha inválidos.');
+      } else {
+        setError(msg || 'Erro ao fazer login.');
+      }
       setLoading(false);
     } else {
       router.replace('/dashboard');
