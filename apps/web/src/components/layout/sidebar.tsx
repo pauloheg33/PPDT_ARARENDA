@@ -38,6 +38,12 @@ const navItems: NavItem[] = [
     roles: ['ADMIN_SME', 'COORD_PPDT', 'GESTOR_ESCOLA', 'DT'],
   },
   {
+    label: 'Minha Área',
+    href: '/aluno',
+    icon: <LayoutDashboard className="h-4 w-4" />,
+    roles: ['ALUNO'],
+  },
+  {
     label: 'Escolas',
     href: '/admin/escolas',
     icon: <School className="h-4 w-4" />,
@@ -187,6 +193,28 @@ export function Sidebar() {
                 >
                   <FileText className="h-4 w-4" />
                   Relatórios
+                </Link>
+              </>
+            )}
+
+            {/* ALUNO links */}
+            {role === 'ALUNO' && profile.student_id && (
+              <>
+                <div className="pt-4 pb-2 px-3 text-xs font-semibold text-muted-foreground uppercase">
+                  Minhas Atividades
+                </div>
+                <Link
+                  href="/aluno/ficha-biografica"
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                    pathname.includes('/ficha-biografica')
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-accent'
+                  )}
+                >
+                  <FileText className="h-4 w-4" />
+                  Ficha Biográfica
                 </Link>
               </>
             )}

@@ -82,6 +82,8 @@ No **SQL Editor** do Supabase, execute em ordem:
 1. `supabase/migrations/001_create_tables.sql` — Tabelas, views e índices
 2. `supabase/migrations/002_rls_policies.sql` — RLS e políticas de acesso
 3. `supabase/migrations/003_storage_setup.sql` — Bucket de fotos
+4. `supabase/migrations/004_auto_profile_trigger.sql` — Trigger de criação automática de perfil
+5. `supabase/migrations/005_aluno_student_link.sql` — Vínculo ALUNO↔student e correção da RLS
 
 ### 3. Popular dados iniciais (opcional)
 
@@ -94,10 +96,9 @@ No Supabase → Authentication → Users → **Add User** (email + senha).
 Depois, no SQL Editor:
 
 ```sql
-INSERT INTO public.profiles (id, email, full_name, role)
+INSERT INTO public.profiles (user_id, full_name, role)
 VALUES (
   'UUID_DO_USUARIO_CRIADO',
-  'admin@ararenda.ce.gov.br',
   'Administrador SME',
   'ADMIN_SME'
 );

@@ -10,6 +10,7 @@ interface Profile {
   role: Role;
   school_id: string | null;
   classroom_id: string | null;
+  student_id: string | null;
   full_name: string;
 }
 

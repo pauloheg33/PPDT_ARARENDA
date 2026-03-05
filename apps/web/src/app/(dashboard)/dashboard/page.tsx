@@ -97,7 +97,7 @@ export default function DashboardPage() {
               .from('students')
               .select('id, name, enrollment_code')
               .eq('classroom_id', classroomId)
-              .eq('status', 'ATIVO')
+              .eq('status', 'Ativo')
               .order('name'),
             supabase
               .from('access_locks')

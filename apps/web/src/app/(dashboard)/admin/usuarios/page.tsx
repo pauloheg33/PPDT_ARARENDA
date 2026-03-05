@@ -78,15 +78,14 @@ export default function UsuariosPage() {
   async function handleCreate() {
     if (!form.email || !form.password || !form.full_name) return;
 
-    // signUp passa role, escola e turma nos metadados.
-    // O trigger handle_new_user() no banco cria o profile automaticamente.
+    // signUp cria o auth.user e o trigger cria o profile com role seguro (DT).
+    // Depois atualizamos o profile com o role desejado via UPDATE (protegido por RLS).
     const { data: authData, error: authError } = await supabaseAdmin.auth.signUp({
       email: form.email,
       password: form.password,
       options: {
         data: {
           full_name: form.full_name,
-          role: form.role,
           school_id: form.school_id || '',
           classroom_id: form.classroom_id || '',
         },
@@ -100,6 +99,20 @@ export default function UsuariosPage() {
 
     // Aguardar o trigger criar o profile
     await new Promise((r) => setTimeout(r, 1000));
+
+    // Atualizar role, school_id e classroom_id via UPDATE autenticado (RLS exige ADMIN_SME)
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        role: form.role,
+        school_id: form.school_id || null,
+        classroom_id: form.classroom_id || null,
+      })
+      .eq('user_id', authData.user.id);
+
+    if (updateError) {
+      alert(`Usuário criado, mas erro ao definir papel: ${updateError.message}`);
+    }
 
     await logAudit('CREATE', 'profiles', authData.user.id, {
       role: form.role,

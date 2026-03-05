@@ -24,8 +24,10 @@ BEGIN
   v_school    := NULLIF(NEW.raw_user_meta_data->>'school_id', '')::UUID;
   v_classroom := NULLIF(NEW.raw_user_meta_data->>'classroom_id', '')::UUID;
 
-  -- Validar role
-  IF v_role NOT IN ('ADMIN_SME','COORD_PPDT','GESTOR_ESCOLA','DT','ALUNO') THEN
+  -- SEGURANÇA: signup só pode criar roles não-privilegiados.
+  -- Roles elevados (ADMIN_SME, COORD_PPDT, GESTOR_ESCOLA) devem ser
+  -- atribuídos via UPDATE por um ADMIN_SME autenticado (protegido por RLS).
+  IF v_role NOT IN ('DT', 'ALUNO') THEN
     v_role := 'DT';
   END IF;
 
