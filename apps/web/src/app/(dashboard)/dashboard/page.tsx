@@ -19,6 +19,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import Link from 'next/link';
+import { DtTurmaSelector } from '@/components/dt-turma-selector';
 
 interface Stats {
   totalSchools: number;
@@ -153,6 +154,11 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
   }
 
   const role = profile?.role;
+
+  // DT sem turma selecionada: mostrar tela de escolha
+  if (role === 'DT' && !profile?.classroom_id) {
+    return <DtTurmaSelector />;
+  }
 
   return (
     <div className="space-y-6">

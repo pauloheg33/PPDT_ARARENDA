@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/lib/supabase';
 import { ROLE_LABELS, type Role } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 import {
@@ -79,11 +80,39 @@ export function Sidebar() {
   const { profile, signOut } = useAuth();
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+  const [turmaInfo, setTurmaInfo] = React.useState<{
+    schoolName: string;
+    yearGrade: string;
+    label: string;
+  } | null>(null);
 
   if (!profile) return null;
 
   const role = profile.role as Role;
   const filteredItems = navItems.filter((item) => item.roles.includes(role));
+
+  // Carregar info da turma do DT
+  React.useEffect(() => {
+    if (role !== 'DT' || !profile.classroom_id || !profile.school_id) return;
+    async function load() {
+      const [{ data: school }, { data: classroom }] = await Promise.all([
+        supabase.from('schools').select('name').eq('id', profile!.school_id!).single(),
+        supabase
+          .from('classrooms')
+          .select('year_grade, label')
+          .eq('id', profile!.classroom_id!)
+          .single(),
+      ]);
+      if (school && classroom) {
+        setTurmaInfo({
+          schoolName: school.name,
+          yearGrade: classroom.year_grade,
+          label: classroom.label,
+        });
+      }
+    }
+    load();
+  }, [role, profile?.classroom_id, profile?.school_id]);
 
   return (
     <>
@@ -139,9 +168,17 @@ export function Sidebar() {
             {/* DT turma links */}
             {role === 'DT' && profile.classroom_id && (
               <>
-                <div className="pt-4 pb-2 px-3 text-xs font-semibold text-muted-foreground uppercase">
+                <div className="pt-4 pb-1 px-3 text-xs font-semibold text-muted-foreground uppercase">
                   Minha Turma
                 </div>
+                {turmaInfo && (
+                  <div className="mx-3 mb-2 rounded-md bg-primary/10 px-3 py-2 text-xs">
+                    <p className="font-medium text-primary truncate">{turmaInfo.schoolName}</p>
+                    <p className="text-muted-foreground">
+                      {turmaInfo.yearGrade} — Turma {turmaInfo.label}
+                    </p>
+                  </div>
+                )}
                 <Link
                   href={`/dt/liberacao?turmaId=${profile.classroom_id}`}
                   onClick={() => setOpen(false)}

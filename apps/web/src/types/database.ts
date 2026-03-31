@@ -94,6 +94,7 @@ export interface Database {
           role: string;
           school_id: string | null;
           classroom_id: string | null;
+          student_id: string | null;
           full_name: string;
           created_at: string;
         };
@@ -102,12 +103,14 @@ export interface Database {
           role: string;
           school_id?: string | null;
           classroom_id?: string | null;
+          student_id?: string | null;
           full_name: string;
         };
         Update: {
           role?: string;
           school_id?: string | null;
           classroom_id?: string | null;
+          student_id?: string | null;
           full_name?: string;
         };
       };
