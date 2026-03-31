@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
+import { logAudit } from '@/lib/audit';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -72,6 +73,12 @@ export function DtTurmaSelector() {
   async function handleConfirm() {
     if (!selectedSchool || !selectedClassroom || !user) return;
 
+    // Segurança: impedir re-atribuição se já tem turma
+    if (profile?.classroom_id) {
+      setError('Você já possui uma turma atribuída.');
+      return;
+    }
+
     const classroom = classrooms.find((c) => c.id === selectedClassroom);
     if (!classroom) return;
 
@@ -84,7 +91,20 @@ export function DtTurmaSelector() {
     setError('');
 
     try {
-      // 1. Atualizar o perfil do DT com school_id e classroom_id
+      // 1. Verificar novamente no banco se a turma ainda está livre (race condition)
+      const { data: freshClassroom } = await supabase
+        .from('classrooms')
+        .select('dt_user_id')
+        .eq('id', selectedClassroom)
+        .single();
+
+      if (freshClassroom?.dt_user_id && freshClassroom.dt_user_id !== user.id) {
+        setError('Esta turma acabou de ser escolhida por outro professor. Selecione outra.');
+        setSaving(false);
+        return;
+      }
+
+      // 2. Atualizar o perfil do DT com school_id e classroom_id
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
@@ -95,7 +115,7 @@ export function DtTurmaSelector() {
 
       if (profileError) throw profileError;
 
-      // 2. Vincular o DT à turma
+      // 3. Vincular o DT à turma
       const { error: classroomError } = await supabase
         .from('classrooms')
         .update({ dt_user_id: user.id })
@@ -103,7 +123,14 @@ export function DtTurmaSelector() {
 
       if (classroomError) throw classroomError;
 
-      // 3. Recarregar perfil
+      // 4. Registrar no audit log
+      await logAudit('UPDATE', 'classrooms', selectedClassroom, {
+        action: 'dt_self_assignment',
+        school_id: selectedSchool,
+        classroom_id: selectedClassroom,
+      });
+
+      // 5. Recarregar perfil
       await refreshProfile();
     } catch (err: any) {
       console.error('Erro ao vincular turma:', err);

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,7 @@ interface Stats {
 
 export default function DashboardPage() {
   const { profile, user, signOut } = useAuth();
+  const router = useRouter();
   const [stats, setStats] = useState<Stats>({
     totalSchools: 0,
     totalClassrooms: 0,
@@ -144,7 +146,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
           variant="outline"
           onClick={async () => {
             await signOut();
-            window.location.href = '/PPDT_ARARENDA/login';
+            router.replace('/login');
           }}
         >
           Voltar ao Login
@@ -338,6 +340,9 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
+                    {(role === 'ADMIN_SME' || role === 'COORD_PPDT') && (
+                      <th className="p-2">Escola</th>
+                    )}
                     <th className="p-2">Turma</th>
                     <th className="p-2">Turno</th>
                     <th className="p-2 text-center">Alunos</th>
@@ -355,6 +360,9 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
                         : 0;
                     return (
                       <tr key={cs.classroom_id} className="border-b hover:bg-muted/50">
+                        {(role === 'ADMIN_SME' || role === 'COORD_PPDT') && (
+                          <td className="p-2 text-muted-foreground">{cs.school_name ?? '—'}</td>
+                        )}
                         <td className="p-2 font-medium">
                           {cs.year_grade} {cs.label}
                         </td>
