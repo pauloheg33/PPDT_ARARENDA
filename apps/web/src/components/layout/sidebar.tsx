@@ -86,21 +86,20 @@ export function Sidebar() {
     label: string;
   } | null>(null);
 
-  if (!profile) return null;
-
-  const role = profile.role as Role;
-  const filteredItems = navItems.filter((item) => item.roles.includes(role));
+  const role = (profile?.role ?? '') as Role;
+  const classroomId = profile?.classroom_id;
+  const schoolId = profile?.school_id;
 
   // Carregar info da turma do DT
   React.useEffect(() => {
-    if (role !== 'DT' || !profile.classroom_id || !profile.school_id) return;
+    if (role !== 'DT' || !classroomId || !schoolId) return;
     async function load() {
       const [{ data: school }, { data: classroom }] = await Promise.all([
-        supabase.from('schools').select('name').eq('id', profile!.school_id!).single(),
+        supabase.from('schools').select('name').eq('id', schoolId!).single(),
         supabase
           .from('classrooms')
           .select('year_grade, label')
-          .eq('id', profile!.classroom_id!)
+          .eq('id', classroomId!)
           .single(),
       ]);
       if (school && classroom) {
@@ -112,7 +111,11 @@ export function Sidebar() {
       }
     }
     load();
-  }, [role, profile?.classroom_id, profile?.school_id]);
+  }, [role, classroomId, schoolId]);
+
+  if (!profile) return null;
+
+  const filteredItems = navItems.filter((item) => item.roles.includes(role));
 
   return (
     <>
