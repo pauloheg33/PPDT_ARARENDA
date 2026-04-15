@@ -126,9 +126,40 @@ export default function UsuariosPage() {
 
   async function handleDelete(p: Profile) {
     if (!confirm(`Excluir o perfil de "${p.full_name}"?`)) return;
-    await supabase.from('profiles').delete().eq('user_id', p.user_id);
-    await logAudit('DELETE', 'profiles', p.user_id, { full_name: p.full_name });
-    fetchAll();
+
+    try {
+      // Obter o token de autenticação
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      if (!token) {
+        alert('Erro: Sessão expirada. Faça login novamente.');
+        return;
+      }
+
+      // Chamar a API route de delete com privilégios admin
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ user_id: p.user_id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(`Erro ao deletar usuário: ${data.error}`);
+        return;
+      }
+
+      await logAudit('DELETE', 'profiles', p.user_id, { full_name: p.full_name });
+      fetchAll();
+    } catch (error: any) {
+      console.error('Erro ao deletar usuário:', error);
+      alert(`Erro ao deletar usuário: ${error.message}`);
+    }
   }
 
   const filteredClassrooms = form.school_id
