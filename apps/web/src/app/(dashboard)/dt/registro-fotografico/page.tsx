@@ -41,6 +41,7 @@ function RegistroFotograficoPageContent() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!turmaId) return;
@@ -71,8 +72,13 @@ function RegistroFotograficoPageContent() {
       const storagePath = photoMap.get(s.id) ?? null;
       let photoUrl: string | null = null;
       if (storagePath) {
-        const { data } = supabase.storage.from('student-photos').getPublicUrl(storagePath);
-        photoUrl = data?.publicUrl ?? null;
+        try {
+          const { data } = supabase.storage.from('student-photos').getPublicUrl(storagePath);
+          photoUrl = data?.publicUrl ?? null;
+        } catch (e) {
+          console.error('Erro ao obter URL pública:', e);
+          photoUrl = null;
+        }
       }
       return { ...s, photoUrl, storage_path: storagePath };
     });
@@ -105,36 +111,55 @@ function RegistroFotograficoPageContent() {
 
   async function handleUpload() {
     if (!uploadingFor || !previewFile || !user) return;
+    
+    setUploading(true);
 
-    const ext = previewFile.name.split('.').pop() ?? 'jpg';
-    const path = `${turmaId}/${uploadingFor}.${ext}`;
+    try {
+      const ext = previewFile.name.split('.').pop() ?? 'jpg';
+      const path = `${turmaId}/${uploadingFor}.${ext}`;
 
-    const student = students.find((s) => s.id === uploadingFor);
-    if (student?.storage_path) {
-      await supabase.storage.from('student-photos').remove([student.storage_path]);
+      const student = students.find((s) => s.id === uploadingFor);
+      if (student?.storage_path) {
+        await supabase.storage.from('student-photos').remove([student.storage_path]);
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from('student-photos')
+        .upload(path, previewFile, { upsert: true });
+
+      if (uploadError) {
+        alert(`Erro ao enviar foto: ${uploadError.message}`);
+        setUploading(false);
+        return;
+      }
+
+      // Aguardar um pouco para garantir que a URL esteja disponível
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      await supabase
+        .from('student_photos')
+        .upsert({
+          student_id: uploadingFor,
+          storage_path: path,
+          updated_at: new Date().toISOString(),
+          updated_by: user.id,
+        });
+
+      await logAudit('UPDATE', 'student_photos', uploadingFor, { path });
+      
+      // Pequeno delay antes de recarregar para garantir sincronização
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setDialogOpen(false);
+      setUploading(false);
+      
+      // Recarregar dados e exibir feedback visual
+      await loadData();
+    } catch (error) {
+      console.error('Erro durante upload:', error);
+      alert('Erro ao processar o upload. Tente novamente.');
+      setUploading(false);
     }
-
-    const { error: uploadError } = await supabase.storage
-      .from('student-photos')
-      .upload(path, previewFile, { upsert: true });
-
-    if (uploadError) {
-      alert(`Erro ao enviar foto: ${uploadError.message}`);
-      return;
-    }
-
-    await supabase
-      .from('student_photos')
-      .upsert({
-        student_id: uploadingFor,
-        storage_path: path,
-        updated_at: new Date().toISOString(),
-        updated_by: user.id,
-      });
-
-    await logAudit('UPDATE', 'student_photos', uploadingFor, { path });
-    setDialogOpen(false);
-    loadData();
   }
 
   async function toggleLeader(studentId: string, field: 'is_leader' | 'is_vice_leader') {
@@ -279,7 +304,15 @@ function RegistroFotograficoPageContent() {
                 onClick={() => openUploadDialog(s.id)}
               >
                 {s.photoUrl ? (
-                  <img src={s.photoUrl} alt={s.name} className="h-full w-full object-cover" />
+                  <img 
+                    src={s.photoUrl} 
+                    alt={s.name} 
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      // Se a imagem falhar, remover a URL
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
                 ) : (
                   <div className="flex h-full items-center justify-center">
                     <User className="h-12 w-12 text-muted-foreground" />
@@ -362,16 +395,39 @@ function RegistroFotograficoPageContent() {
             />
 
             {previewUrl && (
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full">
+              <Button 
+                variant="outline" 
+                onClick={() => fileInputRef.current?.click()} 
+                className="w-full"
+                disabled={uploading}
+              >
                 Escolher outra foto
               </Button>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleUpload} disabled={!previewFile}>
-              <Upload className="mr-2 h-4 w-4" />
-              Enviar Foto
+            <Button 
+              variant="outline" 
+              onClick={() => setDialogOpen(false)}
+              disabled={uploading}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleUpload} 
+              disabled={!previewFile || uploading}
+            >
+              {uploading ? (
+                <>
+                  <span className="animate-spin inline-block mr-2">⏳</span>
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Enviar Foto
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
