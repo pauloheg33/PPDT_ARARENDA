@@ -42,6 +42,7 @@ function RegistroFotograficoPageContent() {
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
   useEffect(() => {
     if (!turmaId) return;
@@ -143,9 +144,10 @@ function RegistroFotograficoPageContent() {
         return;
       }
 
-      // Aguardar um pouco para garantir que a URL esteja disponível
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Aguardar sincronização do Storage
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
+      // Registrar metadados da foto
       await supabase
         .from('student_photos')
         .upsert({
@@ -157,18 +159,32 @@ function RegistroFotograficoPageContent() {
 
       await logAudit('UPDATE', 'student_photos', uploadingFor, { path });
       
-      // Pequeno delay antes de recarregar para garantir sincronização
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Gerar URL com cache-busting (timestamp)
+      const timestamp = Date.now();
+      const { data } = supabase.storage.from('student-photos').getPublicUrl(path);
+      const photoUrlWithCache = data?.publicUrl ? `${data.publicUrl}?t=${timestamp}` : null;
+      
+      // Mostrar feedback de sucesso com a foto
+      setUploadSuccess(true);
+      if (photoUrlWithCache) {
+        setPreviewUrl(photoUrlWithCache);
+      }
+      
+      // Manter visível por 2 segundos, depois fechar
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       setDialogOpen(false);
+      setUploadSuccess(false);
       setUploading(false);
       
-      // Recarregar dados e exibir feedback visual
+      // Recarregar dados em background
+      await new Promise(resolve => setTimeout(resolve, 500));
       await loadData();
     } catch (error) {
       console.error('Erro durante upload:', error);
       alert('Erro ao processar o upload. Tente novamente.');
       setUploading(false);
+      setUploadSuccess(false);
     }
   }
 
@@ -374,72 +390,86 @@ function RegistroFotograficoPageContent() {
           <DialogHeader>
             <DialogTitle>Upload de Foto</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Aluno: <strong>{students.find((s) => s.id === uploadingFor)?.name}</strong>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Formato: JPG, PNG ou WebP. Máximo: 2MB. Tamanho ideal: 3x4.
-            </p>
-
-            {previewUrl ? (
+          
+          {uploadSuccess ? (
+            <div className="space-y-4 text-center py-6">
               <div className="flex justify-center">
-                <img src={previewUrl} alt="Preview" className="max-h-64 rounded-lg border object-contain" />
+                <div className="text-green-600 text-5xl">✅</div>
               </div>
-            ) : (
-              <div
-                className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                <p className="text-muted-foreground">Clique para selecionar a foto</p>
-              </div>
-            )}
+              <p className="text-lg font-semibold text-green-600">Foto enviada com sucesso!</p>
+              <p className="text-sm text-muted-foreground">Fechando...</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Aluno: <strong>{students.find((s) => s.id === uploadingFor)?.name}</strong>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Formato: JPG, PNG ou WebP. Máximo: 2MB. Tamanho ideal: 3x4.
+              </p>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
+              {previewUrl ? (
+                <div className="flex justify-center">
+                  <img src={previewUrl} alt="Preview" className="max-h-64 rounded-lg border object-contain" />
+                </div>
+              ) : (
+                <div
+                  className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">Clique para selecionar a foto</p>
+                </div>
+              )}
 
-            {previewUrl && (
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {previewUrl && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => fileInputRef.current?.click()} 
+                  className="w-full"
+                  disabled={uploading}
+                >
+                  Escolher outra foto
+                </Button>
+              )}
+            </div>
+          )}
+          
+          {!uploadSuccess && (
+            <DialogFooter>
               <Button 
                 variant="outline" 
-                onClick={() => fileInputRef.current?.click()} 
-                className="w-full"
+                onClick={() => setDialogOpen(false)}
                 disabled={uploading}
               >
-                Escolher outra foto
+                Cancelar
               </Button>
-            )}
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setDialogOpen(false)}
-              disabled={uploading}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleUpload} 
-              disabled={!previewFile || uploading}
-            >
-              {uploading ? (
-                <>
-                  <span className="animate-spin inline-block mr-2">⏳</span>
-                  Enviando...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Enviar Foto
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+              <Button 
+                onClick={handleUpload} 
+                disabled={!previewFile || uploading}
+              >
+                {uploading ? (
+                  <>
+                    <span className="animate-spin inline-block mr-2">⏳</span>
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Enviar Foto
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>
