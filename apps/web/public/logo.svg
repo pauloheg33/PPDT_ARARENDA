@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="PPDT Ararendá">
+  <defs>
+    <clipPath id="circleClip">
+      <circle cx="60" cy="60" r="54" />
+    </clipPath>
+  </defs>
+  <rect width="120" height="120" rx="24" fill="#fff" />
+  <g clip-path="url(#circleClip)">
+    <path d="M60 6 A54 54 0 0 1 106 60" fill="none" stroke="#41A857" strokeWidth="18" />
+    <path d="M106 60 A54 54 0 0 1 60 114" fill="none" stroke="#F6C24B" strokeWidth="18" />
+    <path d="M60 114 A54 54 0 0 1 14 60" fill="none" stroke="#E25242" strokeWidth="18" />
+    <path d="M14 60 A54 54 0 0 1 60 6" fill="none" stroke="#1F6AA2" strokeWidth="18" />
+  </g>
+  <path d="M58 36a10 10 0 1 1 0 20 10 10 0 0 1 0-20Z" fill="#F39C22" />
+  <path d="M42 64c0-6.5 5.4-12 12-12h12c6.6 0 12 5.5 12 12v6c0 2.2-1.8 4-4 4H46c-2.2 0-4-1.8-4-4v-6Z" fill="#F39C22" />
+  <path d="M36 78c8-3 18-4.5 24-4.5s16 1.5 24 4.5c2 0.75 3.5 2.7 3.5 4.7v10c0 1.1-0.9 2-2 2H34c-1.1 0-2-0.9-2-2V83c0-2 1.4-3.95 3.5-4.7Z" fill="#0D3B70" />
+  <path d="M36 78l22 10 22-10" fill="none" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
+  <path d="M46 88c4-2 8-3 14-3s10 1 14 3" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+</svg>

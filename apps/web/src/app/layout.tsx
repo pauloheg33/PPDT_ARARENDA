@@ -9,6 +9,10 @@ export const metadata: Metadata = {
   title: 'PPDT Ararendá — Sistema Municipal Diretor de Turma',
   description:
     'Sistema de apoio ao Projeto Professor Diretor de Turma da rede municipal de Ararendá-CE',
+  icons: {
+    icon: '/logo.svg',
+    apple: '/logo.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
