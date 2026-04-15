@@ -50,7 +50,7 @@ function RegistroFotograficoPageContent() {
 
   async function loadData() {
     setLoading(true);
-    const [classRes, studentsRes, photosRes] = await Promise.all([
+    const [classRes, studentsRes] = await Promise.all([
       supabase.from('classrooms').select('*, schools(name)').eq('id', turmaId).single(),
       supabase
         .from('students')
@@ -58,10 +58,20 @@ function RegistroFotograficoPageContent() {
         .eq('classroom_id', turmaId)
         .eq('status', 'Ativo')
         .order('name'),
-      supabase.from('student_photos').select('student_id, storage_path'),
     ]);
 
     setClassroom(classRes.data);
+
+    // Buscar fotos apenas dos alunos desta turma
+    const studentIds = (studentsRes.data ?? []).map((s) => s.id);
+    
+    let photosRes: any = { data: [] };
+    if (studentIds.length > 0) {
+      photosRes = await supabase
+        .from('student_photos')
+        .select('student_id, storage_path')
+        .in('student_id', studentIds);
+    }
 
     const photoMap = new Map<string, string>();
     (photosRes.data ?? []).forEach((p: any) => {
