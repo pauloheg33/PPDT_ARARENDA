@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
@@ -43,28 +44,13 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-600 to-green-500 shadow-lg">
-            <svg
+            <Image
+              src="/logo-blue.svg"
+              alt="PPDT Ararendá"
+              width={80}
+              height={80}
               className="h-16 w-16"
-              viewBox="0 0 200 200"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              {/* Outer circle */}
-              <circle cx="100" cy="100" r="90" fill="white" />
-              
-              {/* Colored segments */}
-              <path d="M 100 15 A 85 85 0 0 1 175 50" fill="none" stroke="#1F6AA2" strokeWidth="14" strokeLinecap="round" />
-              <path d="M 175 50 A 85 85 0 0 1 175 150" fill="none" stroke="#41A857" strokeWidth="14" strokeLinecap="round" />
-              <path d="M 175 150 A 85 85 0 0 1 100 185" fill="none" stroke="#F6C24B" strokeWidth="14" strokeLinecap="round" />
-              <path d="M 100 185 A 85 85 0 0 1 25 100" fill="none" stroke="#E25242" strokeWidth="14" strokeLinecap="round" />
-              <path d="M 25 100 A 85 85 0 0 1 100 15" fill="none" stroke="#1F6AA2" strokeWidth="14" strokeLinecap="round" />
-              
-              {/* Center book symbol */}
-              <g transform="translate(100, 100)">
-                <path d="M -12 -8 L -12 12 Q 0 14 0 12 L 0 -8 Z" fill="#1F6AA2" />
-                <path d="M 12 -8 L 12 12 Q 0 14 0 12 L 0 -8 Z" fill="#41A857" />
-                <circle cx="0" cy="-2" r="2.5" fill="#F39C22" />
-              </g>
-            </svg>
+            />
           </div>
           <CardTitle className="text-2xl">PPDT Ararendá</CardTitle>
           <CardDescription>

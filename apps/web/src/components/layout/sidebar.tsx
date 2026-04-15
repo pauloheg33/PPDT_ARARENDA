@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
@@ -145,7 +146,16 @@ export function Sidebar() {
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="p-4 border-b">
-            <h1 className="text-lg font-bold text-primary">PPDT Ararendá</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <Image
+                src="/logo-blue.svg"
+                alt="PPDT Ararendá"
+                width={40}
+                height={40}
+                className="rounded"
+              />
+              <h1 className="text-lg font-bold text-primary">PPDT Ararendá</h1>
+            </div>
             <p className="text-xs text-muted-foreground">Sistema Municipal DT</p>
           </div>
 
