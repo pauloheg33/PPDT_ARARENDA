@@ -148,12 +148,14 @@ export default function UsuariosPage() {
       });
 
       let data;
-      try {
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType?.includes('application/json')) {
         data = await response.json();
-      } catch (jsonError) {
+      } else {
         const text = await response.text();
         alert(`Erro ao deletar usuário: Resposta inválida do servidor (Status: ${response.status}). ${text.substring(0, 100)}`);
-        console.error('Invalid JSON response:', text);
+        console.error('Invalid response:', text);
         return;
       }
 
