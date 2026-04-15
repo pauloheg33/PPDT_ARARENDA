@@ -147,7 +147,15 @@ export default function UsuariosPage() {
         body: JSON.stringify({ user_id: p.user_id }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        const text = await response.text();
+        alert(`Erro ao deletar usuário: Resposta inválida do servidor (Status: ${response.status}). ${text.substring(0, 100)}`);
+        console.error('Invalid JSON response:', text);
+        return;
+      }
 
       if (!response.ok) {
         alert(`Erro ao deletar usuário: ${data.error}`);

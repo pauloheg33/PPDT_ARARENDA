@@ -4,15 +4,28 @@ import { NextRequest, NextResponse } from 'next/server';
 // Helper para criar cliente admin com service role key (server-side only)
 // Inicialização deferida para evitar erros durante build se env vars não estiverem disponíveis
 function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!url || !key) {
+    throw new Error(`Supabase configuration missing: URL=${!!url}, KEY=${!!key}`);
+  }
+  
+  return createClient(url, key);
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const supabaseAdmin = getSupabaseAdmin();
+    let supabaseAdmin;
+    try {
+      supabaseAdmin = getSupabaseAdmin();
+    } catch (initError: any) {
+      return NextResponse.json(
+        { error: `Erro de configuração: ${initError.message}` },
+        { status: 500 }
+      );
+    }
+
     const { user_id } = await request.json();
 
     if (!user_id) {
