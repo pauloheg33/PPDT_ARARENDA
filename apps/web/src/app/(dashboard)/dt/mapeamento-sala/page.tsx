@@ -41,6 +41,7 @@ function MapeamentoSalaPageContent() {
   useEffect(() => {
     if (!turmaId) return;
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turmaId]);
 
   async function loadData() {

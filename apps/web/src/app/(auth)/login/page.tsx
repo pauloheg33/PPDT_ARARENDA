@@ -66,7 +66,6 @@ export default function LoginPage() {
               </g>
             </svg>
           </div>
-          </div>
           <CardTitle className="text-2xl">PPDT Ararendá</CardTitle>
           <CardDescription>
             Sistema Municipal — Projeto Professor Diretor de Turma
