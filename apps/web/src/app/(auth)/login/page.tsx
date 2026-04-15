@@ -45,11 +45,12 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm">
             <Image
-              src="/PPDT_ARARENDA/logo.svg"
+              src="/logo.svg"
               alt="PPDT Ararendá"
-              width={48}
-              height={48}
-              className="h-12 w-12 object-contain"
+              width={64}
+              height={64}
+              priority
+              className="h-16 w-16 object-contain"
             />
           </div>
           <CardTitle className="text-2xl">PPDT Ararendá</CardTitle>
