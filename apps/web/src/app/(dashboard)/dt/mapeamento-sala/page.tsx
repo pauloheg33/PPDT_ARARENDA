@@ -192,8 +192,8 @@ function MapeamentoSalaPageContent() {
     doc.text('QUADRO', pageWidth / 2, 26, { align: 'center' });
 
     const gridStartY = 32;
-    const cellW = Math.min(35, (pageWidth - 30) / layout.cols);
-    const cellH = Math.min(30, (pageHeight - gridStartY - 15) / layout.rows);
+    const cellW = Math.min(40, (pageWidth - 30) / layout.cols);
+    const cellH = Math.min(35, (pageHeight - gridStartY - 15) / layout.rows);
     const gridStartX = (pageWidth - layout.cols * cellW) / 2;
 
     for (let r = 0; r < layout.rows; r++) {
@@ -203,22 +203,59 @@ function MapeamentoSalaPageContent() {
         const studentId = layout.seats[r]?.[c];
         const student = getStudentById(studentId);
 
+        // Desenhar borda da célula
         doc.setDrawColor(180);
         doc.rect(x, y, cellW, cellH);
 
         if (student) {
-          doc.setFontSize(6);
-          const name = student.name.length > 18 ? student.name.substring(0, 18) + '...' : student.name;
-          doc.text(name, x + cellW / 2, y + cellH / 2, { align: 'center' });
+          // Desenhar foto se existir
+          if (student.photoUrl) {
+            try {
+              const imgData = await loadImage(student.photoUrl);
+              const photoW = cellW * 0.7;
+              const photoH = cellH * 0.7;
+              const photoX = x + (cellW - photoW) / 2;
+              const photoY = y + 2;
+              doc.addImage(imgData, 'JPEG', photoX, photoY, photoW, photoH);
+            } catch (e) {
+              console.error('Erro ao carregar foto para PDF:', e);
+            }
+          }
+
+          // Desenhar nome
+          doc.setFontSize(5);
+          const name = student.name.length > 16 ? student.name.substring(0, 16) + '...' : student.name;
+          doc.text(name, x + cellW / 2, y + cellH - 4, { align: 'center' });
+
+          // Desenhar indicadores de líder/vice-líder
           if (student.is_leader) {
-            doc.setFontSize(5);
-            doc.text('(L)', x + cellW / 2, y + cellH / 2 + 4, { align: 'center' });
+            doc.setFontSize(4);
+            doc.text('L', x + cellW - 2, y + 2);
+          } else if (student.is_vice_leader) {
+            doc.setFontSize(4);
+            doc.text('V', x + cellW - 2, y + 2);
           }
         }
       }
     }
 
     doc.save(`mapeamento_sala_${classroom?.year_grade}_${classroom?.label}.pdf`);
+  }
+
+  function loadImage(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d')?.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/jpeg'));
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
   }
 
   if (!turmaId) {
@@ -277,7 +314,7 @@ function MapeamentoSalaPageContent() {
                   return (
                     <div
                       key={`${rIdx}-${cIdx}`}
-                      className="aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-1 min-h-[70px] transition-colors hover:border-primary/50"
+                      className="aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center p-2 min-h-[120px] transition-colors hover:border-primary/50 cursor-pointer bg-background"
                       onDragOver={handleDragOver}
                       onDrop={() => handleDrop(rIdx, cIdx)}
                       onClick={() => studentId && removeSeat(rIdx, cIdx)}
@@ -286,12 +323,12 @@ function MapeamentoSalaPageContent() {
                       {student ? (
                         <>
                           {student.photoUrl ? (
-                            <img src={student.photoUrl} alt={student.name} className="h-10 w-10 rounded-full object-cover mb-1" />
+                            <img src={student.photoUrl} alt={student.name} className="h-20 w-20 rounded-full object-cover mb-1 flex-shrink-0" />
                           ) : (
-                            <User className="h-8 w-8 text-muted-foreground mb-1" />
+                            <User className="h-16 w-16 text-muted-foreground mb-1 flex-shrink-0" />
                           )}
-                          <span className="text-[9px] text-center leading-tight truncate w-full">{student.name.split(' ').slice(0, 2).join(' ')}</span>
-                          {student.is_leader && <Badge className="text-[8px] px-1 py-0 mt-0.5" variant="default">L</Badge>}
+                          <span className="text-[8px] text-center leading-tight truncate w-full px-1">{student.name.split(' ').slice(0, 2).join(' ')}</span>
+                          {student.is_leader && <Badge className="text-[7px] px-1 py-0 mt-0.5" variant="default">L</Badge>}
                         </>
                       ) : (
                         <span className="text-[10px] text-muted-foreground">Vazio</span>
