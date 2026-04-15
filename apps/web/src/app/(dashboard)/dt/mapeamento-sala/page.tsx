@@ -45,7 +45,7 @@ function MapeamentoSalaPageContent() {
 
   async function loadData() {
     setLoading(true);
-    const [classRes, studentsRes, photosRes, seatMapRes] = await Promise.all([
+    const [classRes, studentsRes, seatMapRes] = await Promise.all([
       supabase.from('classrooms').select('*, schools(name)').eq('id', turmaId).single(),
       supabase
         .from('students')
@@ -53,17 +53,37 @@ function MapeamentoSalaPageContent() {
         .eq('classroom_id', turmaId)
         .eq('status', 'Ativo')
         .order('name'),
-      supabase.from('student_photos').select('student_id, storage_path'),
       supabase.from('seat_maps').select('layout_json').eq('classroom_id', turmaId).single(),
     ]);
 
     setClassroom(classRes.data);
 
+    // Buscar fotos apenas dos alunos desta turma
+    const studentIds = (studentsRes.data ?? []).map((s) => s.id);
+    let photosRes: any = { data: [] };
+    if (studentIds.length > 0) {
+      photosRes = await supabase
+        .from('student_photos')
+        .select('student_id, storage_path')
+        .in('student_id', studentIds);
+    }
+
     const photoMap = new Map<string, string>();
-    (photosRes.data ?? []).forEach((p: any) => {
-      const { data } = supabase.storage.from('student-photos').getPublicUrl(p.storage_path);
-      photoMap.set(p.student_id, data?.publicUrl ?? '');
-    });
+    
+    // Gerar URLs assinadas para cada foto
+    for (const photo of photosRes.data ?? []) {
+      try {
+        const { data } = await supabase.storage
+          .from('student-photos')
+          .createSignedUrl(photo.storage_path, 3600); // URL válida por 1 hora
+        
+        if (data?.signedUrl) {
+          photoMap.set(photo.student_id, data.signedUrl);
+        }
+      } catch (e) {
+        console.error('Erro ao gerar URL assinada para mapeamento:', e);
+      }
+    }
 
     const studentsWithPhotos: StudentSeat[] = (studentsRes.data ?? []).map((s: any) => ({
       ...s,

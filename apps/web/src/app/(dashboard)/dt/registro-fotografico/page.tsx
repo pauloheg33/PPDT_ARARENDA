@@ -75,24 +75,27 @@ function RegistroFotograficoPageContent() {
     }
 
     const photoMap = new Map<string, string>();
-    (photosRes.data ?? []).forEach((p: any) => {
-      photoMap.set(p.student_id, p.storage_path);
-    });
-
-    const withPhotos: StudentWithPhoto[] = (studentsRes.data ?? []).map((s: any) => {
-      const storagePath = photoMap.get(s.id) ?? null;
-      let photoUrl: string | null = null;
-      if (storagePath) {
-        try {
-          const { data } = supabase.storage.from('student-photos').getPublicUrl(storagePath);
-          photoUrl = data?.publicUrl ?? null;
-        } catch (e) {
-          console.error('Erro ao obter URL pública:', e);
-          photoUrl = null;
+    
+    // Gerar URLs assinadas para cada foto
+    for (const photo of photosRes.data ?? []) {
+      try {
+        const { data } = await supabase.storage
+          .from('student-photos')
+          .createSignedUrl(photo.storage_path, 3600); // URL válida por 1 hora
+        
+        if (data?.signedUrl) {
+          photoMap.set(photo.student_id, data.signedUrl);
         }
+      } catch (e) {
+        console.error('Erro ao gerar URL assinada:', e);
       }
-      return { ...s, photoUrl, storage_path: storagePath };
-    });
+    }
+
+    const withPhotos: StudentWithPhoto[] = (studentsRes.data ?? []).map((s: any) => ({
+      ...s,
+      photoUrl: photoMap.get(s.id) ?? null,
+      storage_path: photosRes.data?.find((p: any) => p.student_id === s.id)?.storage_path ?? null,
+    }));
 
     setStudents(withPhotos);
     setLoading(false);
@@ -159,15 +162,17 @@ function RegistroFotograficoPageContent() {
 
       await logAudit('UPDATE', 'student_photos', uploadingFor, { path });
       
-      // Gerar URL com cache-busting (timestamp)
-      const timestamp = Date.now();
-      const { data } = supabase.storage.from('student-photos').getPublicUrl(path);
-      const photoUrlWithCache = data?.publicUrl ? `${data.publicUrl}?t=${timestamp}` : null;
+      // Gerar URL assinada (funciona para bucket privado)
+      const { data } = await supabase.storage
+        .from('student-photos')
+        .createSignedUrl(path, 3600); // URL válida por 1 hora
+      
+      const photoUrlWithSignature = data?.signedUrl ?? null;
       
       // Mostrar feedback de sucesso com a foto
       setUploadSuccess(true);
-      if (photoUrlWithCache) {
-        setPreviewUrl(photoUrlWithCache);
+      if (photoUrlWithSignature) {
+        setPreviewUrl(photoUrlWithSignature);
       }
       
       // Manter visível por 2 segundos, depois fechar
