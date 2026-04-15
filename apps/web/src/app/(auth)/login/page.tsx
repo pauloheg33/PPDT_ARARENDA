@@ -45,7 +45,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm">
             <Image
-              src="/logo.svg"
+              src="/PPDT_ARARENDA/logo.svg"
               alt="PPDT Ararendá"
               width={48}
               height={48}
