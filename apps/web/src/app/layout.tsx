@@ -10,8 +10,8 @@ export const metadata: Metadata = {
   description:
     'Sistema de apoio ao Projeto Professor Diretor de Turma da rede municipal de Ararendá-CE',
   icons: {
-    icon: '/logo.svg',
-    apple: '/logo.svg',
+    icon: '/logo-blue.svg',
+    apple: '/logo-blue.svg',
   },
 };
 

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
@@ -44,11 +43,10 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-600 to-green-500 shadow-lg">
-            <Image
-              src="/logo.svg"
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/PPDT_ARARENDA/logo-blue.svg"
               alt="PPDT Ararendá"
-              width={80}
-              height={80}
               className="h-16 w-16"
             />
           </div>

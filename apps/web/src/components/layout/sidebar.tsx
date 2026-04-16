@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
@@ -147,12 +146,11 @@ export function Sidebar() {
           {/* Header */}
           <div className="p-4 border-b">
             <div className="flex items-center gap-3 mb-2">
-              <Image
-                src="/logo.svg"
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/PPDT_ARARENDA/logo-blue.svg"
                 alt="PPDT Ararendá"
-                width={40}
-                height={40}
-                className="rounded"
+                className="h-10 w-10 rounded"
               />
               <h1 className="text-lg font-bold text-primary">PPDT Ararendá</h1>
             </div>
