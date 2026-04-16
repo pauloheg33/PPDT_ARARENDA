@@ -24,7 +24,7 @@ export default function AlunoDashboardPage() {
 
     async function load() {
       const [studentRes, bioRes] = await Promise.all([
-        supabase.from('students').select('*, classrooms(year_grade, label, school_id), classrooms!inner(schools!inner(name))').eq('id', profile!.student_id).single(),
+        supabase.from('students').select('*, classrooms(year_grade, label, school_id, schools(name))').eq('id', profile!.student_id).single(),
         supabase.from('bio_forms').select('completed, updated_at').eq('student_id', profile!.student_id).maybeSingle(),
       ]);
 

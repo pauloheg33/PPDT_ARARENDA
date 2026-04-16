@@ -32,7 +32,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 
 interface Profile {
   user_id: string;
@@ -128,39 +128,12 @@ export default function UsuariosPage() {
     if (!confirm(`Excluir o perfil de "${p.full_name}"?`)) return;
 
     try {
-      // Obter o token de autenticação
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-
-      if (!token) {
-        alert('Erro: Sessão expirada. Faça login novamente.');
-        return;
-      }
-
-      // Chamar a API route de delete com privilégios admin
-      const response = await fetch('/api/admin/delete-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ user_id: p.user_id }),
+      const { error } = await supabase.functions.invoke('delete-user', {
+        body: { user_id: p.user_id },
       });
 
-      let data;
-      const contentType = response.headers.get('content-type');
-      
-      if (contentType?.includes('application/json')) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        alert(`Erro ao deletar usuário: Resposta inválida do servidor (Status: ${response.status}). ${text.substring(0, 100)}`);
-        console.error('Invalid response:', text);
-        return;
-      }
-
-      if (!response.ok) {
-        alert(`Erro ao deletar usuário: ${data.error}`);
+      if (error) {
+        alert(`Erro ao deletar usuário: ${error.message}`);
         return;
       }
 

@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Save, Check, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
+
 
 const SECTIONS = [
   { id: 'familia', label: 'Composição Familiar' },
@@ -223,11 +223,9 @@ function FichaBiograficaPageContent() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href={`/admin/alunos`}>
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
         <div className="flex-1">
           <h1 className="text-3xl font-bold">Ficha Biográfica</h1>
           <p className="text-muted-foreground">

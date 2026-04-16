@@ -93,12 +93,12 @@ export default function DashboardPage() {
           photosMissing: csData.reduce((s: number, r: any) => s + (r.photos_missing || 0), 0),
         });
 
-        // DT-specific: load students list and lock status for quick actions
+        // DT-specific: load students with pending bios and lock status for quick actions
         if (role === 'DT' && classroomId) {
           const [studentsListRes, lockRes] = await Promise.all([
             supabase
               .from('students')
-              .select('id, name, enrollment_code')
+              .select('id, name, enrollment_code, bio_forms(completed)')
               .eq('classroom_id', classroomId)
               .eq('status', 'Ativo')
               .order('name'),
@@ -108,7 +108,11 @@ export default function DashboardPage() {
               .eq('classroom_id', classroomId)
               .single(),
           ]);
-          setDtStudents(studentsListRes.data ?? []);
+          const allStudents = studentsListRes.data ?? [];
+          const pendingStudents = allStudents.filter(
+            (s: any) => !s.bio_forms?.[0]?.completed
+          );
+          setDtStudents(pendingStudents);
           setLockStatus(lockRes.data);
         }
       } catch (err) {

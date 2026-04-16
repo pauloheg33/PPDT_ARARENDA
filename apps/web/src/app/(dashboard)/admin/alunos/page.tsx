@@ -41,6 +41,7 @@ interface Student {
   birthdate: string | null;
   status: string;
   responsible_name: string | null;
+  responsible_phone: string | null;
   classroom_id: string;
   school_id: string;
   classrooms?: { year_grade: string; label: string; schools?: { name: string } };
@@ -113,7 +114,7 @@ export default function AlunosPage() {
       enrollment_code: s.enrollment_code ?? '',
       birthdate: s.birthdate ?? '',
       responsible_name: s.responsible_name ?? '',
-      responsible_phone: '',
+      responsible_phone: s.responsible_phone ?? '',
       school_id: s.school_id,
       classroom_id: s.classroom_id,
       status: s.status,
