@@ -148,7 +148,7 @@ export function Sidebar() {
           <div className="p-4 border-b">
             <div className="flex items-center gap-3 mb-2">
               <Image
-                src="/logo-blue.svg"
+                src="/logo.svg"
                 alt="PPDT Ararendá"
                 width={40}
                 height={40}
