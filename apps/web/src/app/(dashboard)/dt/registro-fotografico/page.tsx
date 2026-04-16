@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Camera, Upload, Star, Download, User, Image as ImageIcon } from 'lucide-react';
+import { Camera, Upload, Star, Download, User, Image as ImageIcon, Trash2, RefreshCw } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 interface StudentWithPhoto {
@@ -42,7 +42,7 @@ function RegistroFotograficoPageContent() {
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     if (!turmaId) return;
@@ -64,9 +64,7 @@ function RegistroFotograficoPageContent() {
 
     setClassroom(classRes.data);
 
-    // Buscar fotos apenas dos alunos desta turma
     const studentIds = (studentsRes.data ?? []).map((s) => s.id);
-    
     let photosRes: any = { data: [] };
     if (studentIds.length > 0) {
       photosRes = await supabase
@@ -76,14 +74,11 @@ function RegistroFotograficoPageContent() {
     }
 
     const photoMap = new Map<string, string>();
-    
-    // Gerar URLs assinadas para cada foto
     for (const photo of photosRes.data ?? []) {
       try {
         const { data } = await supabase.storage
           .from('student-photos')
-          .createSignedUrl(photo.storage_path, 3600); // URL válida por 1 hora
-        
+          .createSignedUrl(photo.storage_path, 3600);
         if (data?.signedUrl) {
           photoMap.set(photo.student_id, data.signedUrl);
         }
@@ -102,16 +97,26 @@ function RegistroFotograficoPageContent() {
     setLoading(false);
   }
 
-  function openUploadDialog(studentId: string) {
+  function openPhotoDialog(studentId: string) {
+    const student = students.find((s) => s.id === studentId);
     setUploadingFor(studentId);
-    setPreviewUrl(null);
+    setPreviewUrl(student?.photoUrl ?? null);
     setPreviewFile(null);
     setDialogOpen(true);
+  }
+
+  function closeDialog() {
+    setDialogOpen(false);
+    setPreviewUrl(null);
+    setPreviewFile(null);
+    setUploadingFor(null);
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
     if (file.size > 2 * 1024 * 1024) {
       alert('A foto deve ter no máximo 2MB.');
       return;
@@ -124,9 +129,14 @@ function RegistroFotograficoPageContent() {
     reader.readAsDataURL(file);
   }
 
+  function cancelNewFile() {
+    const student = students.find((s) => s.id === uploadingFor);
+    setPreviewFile(null);
+    setPreviewUrl(student?.photoUrl ?? null);
+  }
+
   async function handleUpload() {
     if (!uploadingFor || !previewFile || !user) return;
-    
     setUploading(true);
 
     try {
@@ -144,53 +154,71 @@ function RegistroFotograficoPageContent() {
 
       if (uploadError) {
         alert(`Erro ao enviar foto: ${uploadError.message}`);
-        setUploading(false);
         return;
       }
 
-      // Aguardar sincronização do Storage
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Registrar metadados da foto
-      await supabase
-        .from('student_photos')
-        .upsert({
-          student_id: uploadingFor,
-          storage_path: path,
-          updated_at: new Date().toISOString(),
-          updated_by: user.id,
-        });
+      await supabase.from('student_photos').upsert({
+        student_id: uploadingFor,
+        storage_path: path,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      });
 
       await logAudit('UPDATE', 'student_photos', uploadingFor, { path });
-      
-      // Gerar URL assinada (funciona para bucket privado)
+
       const { data } = await supabase.storage
         .from('student-photos')
-        .createSignedUrl(path, 3600); // URL válida por 1 hora
-      
-      const photoUrlWithSignature = data?.signedUrl ?? null;
-      
-      // Mostrar feedback de sucesso com a foto
-      setUploadSuccess(true);
-      if (photoUrlWithSignature) {
-        setPreviewUrl(photoUrlWithSignature);
-      }
-      
-      // Manter visível por 2 segundos, depois fechar
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setDialogOpen(false);
-      setUploadSuccess(false);
-      setUploading(false);
-      
-      // Recarregar dados em background
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await loadData();
+        .createSignedUrl(path, 3600);
+
+      const newUrl = data?.signedUrl ?? null;
+
+      // Atualizar estado local sem recarregar tudo
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === uploadingFor
+            ? { ...s, photoUrl: newUrl, storage_path: path }
+            : s
+        )
+      );
+
+      // Voltar para a visualização da foto (sem fechar o dialog)
+      setPreviewFile(null);
+      setPreviewUrl(newUrl);
     } catch (error) {
       console.error('Erro durante upload:', error);
       alert('Erro ao processar o upload. Tente novamente.');
+    } finally {
       setUploading(false);
-      setUploadSuccess(false);
+    }
+  }
+
+  async function handleRemovePhoto() {
+    if (!uploadingFor || !user) return;
+    const student = students.find((s) => s.id === uploadingFor);
+    if (!student?.storage_path) return;
+
+    if (!confirm(`Remover a foto de "${student.name}"? Esta ação não pode ser desfeita.`)) return;
+
+    setRemoving(true);
+    try {
+      await supabase.storage.from('student-photos').remove([student.storage_path]);
+      await supabase.from('student_photos').delete().eq('student_id', uploadingFor);
+      await logAudit('DELETE', 'student_photos', uploadingFor, { removed_by: user.id });
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === uploadingFor ? { ...s, photoUrl: null, storage_path: null } : s
+        )
+      );
+
+      closeDialog();
+    } catch (error) {
+      console.error('Erro ao remover foto:', error);
+      alert('Erro ao remover foto. Tente novamente.');
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -203,18 +231,11 @@ function RegistroFotograficoPageContent() {
     if (newValue) {
       const otherIds = students.filter((s) => s.id !== studentId && s[field]).map((s) => s.id);
       if (otherIds.length > 0) {
-        await supabase
-          .from('students')
-          .update({ [field]: false })
-          .in('id', otherIds);
+        await supabase.from('students').update({ [field]: false }).in('id', otherIds);
       }
     }
 
-    await supabase
-      .from('students')
-      .update({ [field]: newValue })
-      .eq('id', studentId);
-
+    await supabase.from('students').update({ [field]: newValue }).eq('id', studentId);
     loadData();
   }
 
@@ -309,6 +330,9 @@ function RegistroFotograficoPageContent() {
     return <div className="animate-pulse text-muted-foreground">Carregando...</div>;
   }
 
+  const currentStudent = students.find((s) => s.id === uploadingFor);
+  const hasExistingPhoto = !!currentStudent?.storage_path;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -333,15 +357,14 @@ function RegistroFotograficoPageContent() {
             <CardContent className="p-3 text-center">
               <div
                 className="relative mx-auto mb-2 h-32 w-28 rounded-md overflow-hidden bg-muted cursor-pointer"
-                onClick={() => openUploadDialog(s.id)}
+                onClick={() => openPhotoDialog(s.id)}
               >
                 {s.photoUrl ? (
-                  <img 
-                    src={s.photoUrl} 
-                    alt={s.name} 
+                  <img
+                    src={s.photoUrl}
+                    alt={s.name}
                     className="h-full w-full object-cover"
                     onError={(e) => {
-                      // Se a imagem falhar, remover a URL
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}
                   />
@@ -391,91 +414,115 @@ function RegistroFotograficoPageContent() {
         ))}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* Dialog de foto */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upload de Foto</DialogTitle>
+            <DialogTitle>
+              {previewFile ? 'Nova Foto — Confirmar' : hasExistingPhoto ? 'Foto do Aluno' : 'Adicionar Foto'}
+            </DialogTitle>
           </DialogHeader>
-          
-          {uploadSuccess ? (
-            <div className="space-y-4 text-center py-6">
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Aluno: <strong>{currentStudent?.name}</strong>
+            </p>
+
+            {/* Visualização da foto (existente ou nova) */}
+            {previewUrl ? (
               <div className="flex justify-center">
-                <div className="text-green-600 text-5xl">✅</div>
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="max-h-64 rounded-lg border object-contain"
+                />
               </div>
-              <p className="text-lg font-semibold text-green-600">Foto enviada com sucesso!</p>
-              <p className="text-sm text-muted-foreground">Fechando...</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Aluno: <strong>{students.find((s) => s.id === uploadingFor)?.name}</strong>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Formato: JPG, PNG ou WebP. Máximo: 2MB. Tamanho ideal: 3x4.
-              </p>
+            ) : (
+              /* Área de upload — sem foto ainda */
+              <div
+                className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Clique para selecionar a foto</p>
+                <p className="text-xs text-muted-foreground mt-1">JPG, PNG ou WebP · máx. 2MB · ideal 3x4</p>
+              </div>
+            )}
 
-              {previewUrl ? (
-                <div className="flex justify-center">
-                  <img src={previewUrl} alt="Preview" className="max-h-64 rounded-lg border object-contain" />
-                </div>
-              ) : (
-                <div
-                  className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {/* Ações quando está mostrando nova seleção */}
+            {previewFile && (
+              <p className="text-xs text-center text-muted-foreground">
+                JPG, PNG ou WebP · máx. 2MB · ideal 3x4
+              </p>
+            )}
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {previewFile ? (
+              /* Confirmando nova foto */
+              <>
+                <Button
+                  variant="outline"
+                  onClick={cancelNewFile}
+                  disabled={uploading}
+                  className="sm:mr-auto"
                 >
-                  <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                  <p className="text-muted-foreground">Clique para selecionar a foto</p>
-                </div>
-              )}
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-
-              {previewUrl && (
-                <Button 
-                  variant="outline" 
-                  onClick={() => fileInputRef.current?.click()} 
-                  className="w-full"
+                  Cancelar
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                 >
-                  Escolher outra foto
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Escolher outra
                 </Button>
-              )}
-            </div>
-          )}
-          
-          {!uploadSuccess && (
-            <DialogFooter>
-              <Button 
-                variant="outline" 
-                onClick={() => setDialogOpen(false)}
-                disabled={uploading}
-              >
-                Cancelar
+                <Button onClick={handleUpload} disabled={uploading}>
+                  {uploading ? (
+                    <><span className="animate-spin inline-block mr-2">⏳</span>Enviando...</>
+                  ) : (
+                    <><Upload className="mr-2 h-4 w-4" />Confirmar envio</>
+                  )}
+                </Button>
+              </>
+            ) : hasExistingPhoto ? (
+              /* Foto existente — opções de alterar/remover */
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={handleRemovePhoto}
+                  disabled={removing}
+                  className="sm:mr-auto"
+                >
+                  {removing ? (
+                    <><span className="animate-spin inline-block mr-2">⏳</span>Removendo...</>
+                  ) : (
+                    <><Trash2 className="mr-2 h-4 w-4" />Remover foto</>
+                  )}
+                </Button>
+                <Button variant="outline" onClick={closeDialog} disabled={removing}>
+                  Fechar
+                </Button>
+                <Button onClick={() => fileInputRef.current?.click()} disabled={removing}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Alterar foto
+                </Button>
+              </>
+            ) : (
+              /* Sem foto — só fechar */
+              <Button variant="outline" onClick={closeDialog}>
+                Fechar
               </Button>
-              <Button 
-                onClick={handleUpload} 
-                disabled={!previewFile || uploading}
-              >
-                {uploading ? (
-                  <>
-                    <span className="animate-spin inline-block mr-2">⏳</span>
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Enviar Foto
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          )}
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
