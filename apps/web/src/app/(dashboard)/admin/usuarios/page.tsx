@@ -133,7 +133,12 @@ export default function UsuariosPage() {
       });
 
       if (error) {
-        alert(`Erro ao deletar usuário: ${error.message}`);
+        let message = error.message;
+        try {
+          const body = await (error as any).context?.json?.();
+          if (body?.error) message = body.error;
+        } catch {}
+        alert(`Erro ao deletar usuário: ${message}`);
         return;
       }
 
