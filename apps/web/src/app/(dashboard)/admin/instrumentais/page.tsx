@@ -309,24 +309,30 @@ export default function AdminInstrumentaisPage() {
 
           {/* Filtros */}
           <div className="flex flex-wrap gap-3">
-            <Select value={filterSchool} onValueChange={setFilterSchool}>
+            <Select
+              value={filterSchool || '__all'}
+              onValueChange={(v) => setFilterSchool(v === '__all' ? '' : v)}
+            >
               <SelectTrigger className="w-52">
                 <SelectValue placeholder="Filtrar por escola" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas as escolas</SelectItem>
+                <SelectItem value="__all">Todas as escolas</SelectItem>
                 {schools.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            <Select value={filterTipo} onValueChange={setFilterTipo}>
+            <Select
+              value={filterTipo || '__all'}
+              onValueChange={(v) => setFilterTipo(v === '__all' ? '' : v)}
+            >
               <SelectTrigger className="w-52">
                 <SelectValue placeholder="Filtrar por tipo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os tipos</SelectItem>
+                <SelectItem value="__all">Todos os tipos</SelectItem>
                 {Object.entries(TIPO_LABELS).map(([k, v]) => (
                   <SelectItem key={k} value={k}>{v}</SelectItem>
                 ))}
