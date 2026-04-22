@@ -13,6 +13,7 @@ const ROUTE_ROLE_MAP: { prefix: string; roles: Role[] }[] = [
   { prefix: '/admin/turmas', roles: ['ADMIN_SME', 'COORD_PPDT', 'GESTOR_ESCOLA'] },
   { prefix: '/admin/importar', roles: ['ADMIN_SME', 'GESTOR_ESCOLA', 'DT'] },
   { prefix: '/admin/alunos', roles: ['ADMIN_SME', 'COORD_PPDT', 'GESTOR_ESCOLA', 'DT'] },
+  { prefix: '/admin/instrumentais', roles: ['ADMIN_SME', 'COORD_PPDT', 'GESTOR_ESCOLA'] },
   { prefix: '/dt/', roles: ['ADMIN_SME', 'DT'] },
   { prefix: '/aluno', roles: ['ALUNO'] },
   { prefix: '/dashboard', roles: ['ADMIN_SME', 'COORD_PPDT', 'GESTOR_ESCOLA', 'DT'] },

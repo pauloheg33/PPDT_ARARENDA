@@ -20,7 +20,7 @@ import {
   LogOut,
   Menu,
   X,
-
+  FolderOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -73,6 +73,12 @@ const navItems: NavItem[] = [
     href: '/admin/usuarios',
     icon: <Users className="h-4 w-4" />,
     roles: ['ADMIN_SME'],
+  },
+  {
+    label: 'Instrumentais',
+    href: '/admin/instrumentais',
+    icon: <FolderOpen className="h-4 w-4" />,
+    roles: ['ADMIN_SME', 'COORD_PPDT', 'GESTOR_ESCOLA'],
   },
 ];
 
@@ -241,6 +247,19 @@ export function Sidebar() {
                 >
                   <FileText className="h-4 w-4" />
                   Relatórios
+                </Link>
+                <Link
+                  href="/dt/instrumentais"
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                    pathname.includes('/instrumentais')
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-accent'
+                  )}
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  Instrumentais
                 </Link>
               </>
             )}
