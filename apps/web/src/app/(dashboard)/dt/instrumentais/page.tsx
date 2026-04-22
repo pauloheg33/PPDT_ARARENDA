@@ -37,10 +37,10 @@ import {
   Eye,
   Download,
   RefreshCw,
+  Trash2,
   Upload,
   FileText,
   Library,
-  Trash2,
   ExternalLink,
 } from 'lucide-react';
 
@@ -185,6 +185,14 @@ export default function InstrumentaisPage() {
     a.click();
   }
 
+  async function handleDeleteUpload(upload: Upload) {
+    if (!confirm(`Excluir o registro "${upload.original_filename ?? TIPO_LABELS[upload.type]}"? Esta ação não pode ser desfeita.`)) return;
+    await supabase.storage.from('instrumentais').remove([upload.storage_path]);
+    await supabase.from('instrumental_uploads').delete().eq('id', upload.id);
+    await logAudit('DELETE', 'instrumental_uploads', upload.id, { type: upload.type });
+    fetchUploads();
+  }
+
   async function handleSubmitUpload(e: React.FormEvent) {
     e.preventDefault();
     setUploadError('');
@@ -317,24 +325,30 @@ export default function InstrumentaisPage() {
         {/* ====== ABA: MEUS REGISTROS ====== */}
         <TabsContent value="registros" className="space-y-4 pt-4">
           <div className="flex flex-wrap gap-3">
-            <Select value={filterTipo} onValueChange={setFilterTipo}>
+            <Select
+              value={filterTipo || '__all'}
+              onValueChange={(v) => setFilterTipo(v === '__all' ? '' : v)}
+            >
               <SelectTrigger className="w-52">
                 <SelectValue placeholder="Filtrar por tipo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os tipos</SelectItem>
+                <SelectItem value="__all">Todos os tipos</SelectItem>
                 {Object.entries(TIPO_LABELS).map(([k, v]) => (
                   <SelectItem key={k} value={k}>{v}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            <Select value={filterAluno} onValueChange={setFilterAluno}>
+            <Select
+              value={filterAluno || '__all'}
+              onValueChange={(v) => setFilterAluno(v === '__all' ? '' : v)}
+            >
               <SelectTrigger className="w-52">
                 <SelectValue placeholder="Filtrar por aluno" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os alunos</SelectItem>
+                <SelectItem value="__all">Todos os alunos</SelectItem>
                 {students.map((s) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
@@ -394,6 +408,14 @@ export default function InstrumentaisPage() {
                             >
                               <RefreshCw className="h-4 w-4" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Excluir registro"
+                              onClick={() => handleDeleteUpload(u)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -413,14 +435,14 @@ export default function InstrumentaisPage() {
                 <div className="space-y-2">
                   <Label>Estudante <span className="text-muted-foreground">(opcional)</span></Label>
                   <Select
-                    value={uploadForm.student_id}
-                    onValueChange={(v) => setUploadForm({ ...uploadForm, student_id: v })}
+                    value={uploadForm.student_id || '__none'}
+                    onValueChange={(v) => setUploadForm({ ...uploadForm, student_id: v === '__none' ? '' : v })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione um aluno" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sem aluno específico</SelectItem>
+                      <SelectItem value="__none">Sem aluno específico</SelectItem>
                       {students.map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
