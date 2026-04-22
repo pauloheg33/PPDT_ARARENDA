@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,7 +87,13 @@ export default function LoginPage() {
               {loading ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
-          <p className="mt-4 text-center text-xs text-muted-foreground">
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Não tem conta?{' '}
+            <Link href="/cadastro" className="text-primary underline-offset-4 hover:underline">
+              Cadastre-se
+            </Link>
+          </p>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
             Secretaria Municipal de Educação de Ararendá — CE
           </p>
         </CardContent>
