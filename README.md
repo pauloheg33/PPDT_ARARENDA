@@ -27,6 +27,35 @@ Sistema de gestão educacional municipal para a **Secretaria Municipal de Educa�
 
 ---
 
+## Cadastro de Novos Usuários
+
+Professores Diretores de Turma podem criar seu próprio acesso diretamente pela tela de login, sem depender do administrador.
+
+### Passo a passo para o professor
+
+1. Acesse o sistema e clique em **"Cadastre-se"** (abaixo do botão Entrar)
+2. Preencha o formulário:
+   - **Nome Completo** — seu nome como aparecerá no sistema
+   - **E-mail** — será usado para login
+   - **Senha** — mínimo 6 caracteres
+   - **Confirmar Senha**
+   - **Escola** — selecione a escola municipal em que atua
+   - **Turma** — selecione a turma que você é Diretor de Turma
+3. Clique em **"Criar Conta"**
+4. O acesso é liberado imediatamente — você já entra no dashboard como **Professor Diretor de Turma**
+
+> O papel (DT) e o vínculo com escola e turma são atribuídos automaticamente no momento do cadastro.
+
+### O que o Administrador pode fazer
+
+O ADMIN_SME acessa **Usuários** no menu lateral e pode:
+
+- **Visualizar** todos os usuários cadastrados (inclusive os auto-cadastrados)
+- **Criar** novos usuários manualmente, escolhendo qualquer papel (DT, Gestor, Coordenador, Admin)
+- **Excluir** usuários que não devem mais ter acesso ao sistema
+
+---
+
 ## Módulos
 
 1. **Cadastros** — Escolas, Turmas, Alunos, Usuários
@@ -139,6 +168,7 @@ PPDT_ARARENDA/
 │   ├── src/
 │   │   ├── app/                    # Páginas (App Router)
 │   │   │   ├── (auth)/login/       # Login
+│   │   │   ├── (auth)/cadastro/    # Auto-cadastro de DT
 │   │   │   └── (dashboard)/        # Área autenticada
 │   │   │       ├── dashboard/      # Dashboard principal
 │   │   │       ├── admin/          # Escolas, Turmas, Alunos, Importar, Usuários
