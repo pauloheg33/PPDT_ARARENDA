@@ -492,7 +492,7 @@ export default function InstrumentaisPage() {
         <p className="text-muted-foreground">Registros, envios e modelos de documentos</p>
       </div>
 
-      <Tabs defaultValue="registros">
+      <Tabs defaultValue="biblioteca">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="registros" className="flex items-center gap-2">
             <FileText className="h-4 w-4" /> Meus Registros
