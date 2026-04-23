@@ -133,6 +133,7 @@ export default function InstrumentaisPage() {
     label: string;
     school_name: string;
   } | null>(null);
+  const [generating, setGenerating] = useState(false);
 
   const classroomId = profile?.classroom_id;
   const schoolId = profile?.school_id;
@@ -312,116 +313,159 @@ export default function InstrumentaisPage() {
     fetchUploads();
   }
 
-  function gerarAtaAssembleia() {
-    if (!classroomInfo) return;
-
-    const doc = new jsPDF('p', 'mm', 'a4');
-    const pageW = 210;
-    const margin = 20;
-    const contentW = pageW - margin * 2;
-
-    const escola = classroomInfo.school_name;
-    const turma = `${classroomInfo.year_grade} ${classroomInfo.label}`;
-    const dtName = profile?.full_name ?? '';
-
-    // === PÁGINA 1 ===
-
-    // Cabeçalho
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PPDT Ararendá', margin, 12);
-    doc.text('PROFESSOR DIRETOR DE TURMA - PDT', pageW / 2, 12, { align: 'center' });
-
-    // Linhas separadoras duplas
-    doc.setLineWidth(0.4);
-    doc.line(margin, 16, pageW - margin, 16);
-    doc.line(margin, 17.5, pageW - margin, 17.5);
-
-    // Título
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    const titulo = 'ATA DA ___ ASSEMBLEIA DOS REPRESENTANTES DE PAIS E RESPONSÁVEIS DA TURMA';
-    doc.text(titulo, pageW / 2, 26, { align: 'center' });
-
-    // Linha sob o título
-    doc.setLineWidth(0.3);
-    doc.line(margin, 29, pageW - margin, 29);
-
-    // Parágrafo inicial
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    let y = 38;
-
-    const paragrafo =
-      `Ao(s) _________ dia(s) do mês de ________________________ de _________________, às ____________ ` +
-      `horas, realizou-se uma reunião com os pais/responsáveis da turma do(a) ${turma} da Escola ` +
-      `${escola} com a seguinte pauta de trabalho.`;
-    const paragrafoLines = doc.splitTextToSize(paragrafo, contentW);
-    doc.text(paragrafoLines, margin, y, { align: 'justify' });
-    y += paragrafoLines.length * 6 + 10;
-
-    // Itens de pauta
-    for (let i = 1; i <= 6; i++) {
-      doc.text(`${i}.`, margin, y);
-      doc.line(margin + 7, y + 0.5, pageW - margin, y + 0.5);
-      y += 10;
-    }
-
-    y += 10;
-
-    // Encerramento
-    const encerramento =
-      'Nada mais havendo a ser tratado, deu por encerrada a Assembleia de Pais/responsáveis dos estudantes desta ' +
-      'turma e foi elaborada a presente ata que será assinada pelos organizadores da reunião e pelos pais/responsáveis.';
-    const encerramentoLines = doc.splitTextToSize(encerramento, contentW);
-    doc.text(encerramentoLines, margin, y, { align: 'justify' });
-    y += encerramentoLines.length * 6 + 14;
-
-    // Linhas de assinatura
-    const assinaturas = [
-      `Diretor(a) de turma: ${dtName}`,
-      'Secretário(a):',
-      'Professor(a):',
-      'Núcleo Gestor:',
-      'Núcleo Gestor:',
-    ];
-    for (const label of assinaturas) {
-      doc.text(label, margin, y);
-      const labelW = doc.getTextWidth(label);
-      doc.line(margin + labelW + 3, y + 0.5, pageW - margin, y + 0.5);
-      y += 11;
-    }
-
-    // === PÁGINA 2 — Lista de alunos ===
-    doc.addPage();
-
-    autoTable(doc, {
-      head: [['Nº', 'NOME DOS ESTUDANTES DA TURMA', 'PAIS/RESPONSÁVEIS (Assinatura)']],
-      body: students.map((s, i) => [(i + 1).toString(), s.name, '']),
-      startY: 15,
-      styles: { fontSize: 9, cellPadding: 3.5 },
-      headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold',
-        lineWidth: 0.3,
-        lineColor: [0, 0, 0],
-      },
-      bodyStyles: { lineWidth: 0.3, lineColor: [0, 0, 0], textColor: [0, 0, 0] },
-      columnStyles: {
-        0: { cellWidth: 14, halign: 'center' },
-        1: { cellWidth: 88 },
-        2: { cellWidth: 68 },
-      },
-      margin: { left: margin, right: margin },
+  function svgUrlToBase64(url: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 256;
+        canvas.height = img.naturalHeight || 256;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(null); return; }
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
     });
+  }
 
-    const escolaSlug = escola.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase().slice(0, 25);
-    const turmaSlug = turma.replace(/\s+/g, '');
-    const ano = new Date().getFullYear();
-    doc.save(`ATA_ASSEMBLEIA_${escolaSlug}_${turmaSlug}_${ano}.pdf`);
+  async function gerarAtaAssembleia() {
+    if (!classroomInfo) return;
+    setGenerating(true);
 
-    logAudit('EXPORT', 'instrumental_uploads', classroomId!, { type: 'ata_assembleia' });
+    try {
+      const logoBase64 = await svgUrlToBase64('/PPDT_ARARENDA/logo-blue.svg');
+
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageW = 210;
+      const margin = 20;
+      const contentW = pageW - margin * 2;
+
+      const escola = classroomInfo.school_name;
+      const turma = `${classroomInfo.year_grade} ${classroomInfo.label}`;
+      const dtName = profile?.full_name ?? '';
+
+      // === PÁGINA 1 ===
+
+      // Cabeçalho: logo à esquerda + título central
+      const headerH = 18;
+      if (logoBase64) {
+        doc.addImage(logoBase64, 'PNG', margin, 4, 13, 13);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PPDT Ararendá', margin + 15, 9);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Sistema Municipal DT', margin + 15, 13);
+      } else {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PPDT Ararendá', margin, 11);
+      }
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PROFESSOR DIRETOR DE TURMA - PDT', pageW / 2, 11, { align: 'center' });
+
+      // Linhas separadoras duplas
+      doc.setLineWidth(0.5);
+      doc.line(margin, headerH, pageW - margin, headerH);
+      doc.line(margin, headerH + 1.5, pageW - margin, headerH + 1.5);
+
+      // Título
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(
+        'ATA DA ___ ASSEMBLEIA DOS REPRESENTANTES DE PAIS E RESPONSÁVEIS DA TURMA',
+        pageW / 2, headerH + 10, { align: 'center' }
+      );
+
+      // Linha sob o título
+      doc.setLineWidth(0.3);
+      doc.line(margin, headerH + 13, pageW - margin, headerH + 13);
+
+      // Parágrafo de abertura — sem align:justify para evitar overflow
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      let y = headerH + 22;
+
+      const paragrafo =
+        `Ao(s) _________ dia(s) do mês de ________________________ de _________________, ` +
+        `às ____________ horas, realizou-se uma reunião com os pais/responsáveis da turma ` +
+        `do(a) ${turma} da Escola ${escola} com a seguinte pauta de trabalho.`;
+
+      // -4 de buffer para garantir que linhas com underscores não vazem
+      const paraLines = doc.splitTextToSize(paragrafo, contentW - 4);
+      doc.text(paraLines, margin, y);
+      y += paraLines.length * 6 + 10;
+
+      // Itens de pauta
+      for (let i = 1; i <= 6; i++) {
+        doc.text(`${i}.`, margin, y);
+        doc.line(margin + 7, y + 0.5, pageW - margin, y + 0.5);
+        y += 10;
+      }
+
+      y += 10;
+
+      // Encerramento
+      const encerramento =
+        'Nada mais havendo a ser tratado, deu por encerrada a Assembleia de Pais/responsáveis ' +
+        'dos estudantes desta turma e foi elaborada a presente ata que será assinada pelos ' +
+        'organizadores da reunião e pelos pais/responsáveis.';
+      const encLines = doc.splitTextToSize(encerramento, contentW - 4);
+      doc.text(encLines, margin, y);
+      y += encLines.length * 6 + 14;
+
+      // Assinaturas
+      const assinaturas = [
+        `Diretor(a) de turma: ${dtName}`,
+        'Secretário(a):',
+        'Professor(a):',
+        'Núcleo Gestor:',
+        'Núcleo Gestor:',
+      ];
+      for (const label of assinaturas) {
+        doc.text(label, margin, y);
+        doc.line(margin + doc.getTextWidth(label) + 3, y + 0.5, pageW - margin, y + 0.5);
+        y += 11;
+      }
+
+      // === PÁGINA 2 — Lista de alunos ===
+      doc.addPage();
+
+      autoTable(doc, {
+        head: [['Nº', 'NOME DOS ESTUDANTES DA TURMA', 'PAIS/RESPONSÁVEIS (Assinatura)']],
+        body: students.map((s, i) => [(i + 1).toString(), s.name, '']),
+        startY: 15,
+        styles: { fontSize: 9, cellPadding: 3.5 },
+        headStyles: {
+          fillColor: [255, 255, 255],
+          textColor: [0, 0, 0],
+          fontStyle: 'bold',
+          lineWidth: 0.3,
+          lineColor: [0, 0, 0],
+        },
+        bodyStyles: { lineWidth: 0.3, lineColor: [0, 0, 0], textColor: [0, 0, 0] },
+        columnStyles: {
+          0: { cellWidth: 14, halign: 'center' },
+          1: { cellWidth: 88 },
+          2: { cellWidth: 68 },
+        },
+        margin: { left: margin, right: margin },
+      });
+
+      const escolaSlug = escola.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase().slice(0, 25);
+      const turmaSlug = turma.replace(/\s+/g, '');
+      const ano = new Date().getFullYear();
+      doc.save(`ATA_ASSEMBLEIA_${escolaSlug}_${turmaSlug}_${ano}.pdf`);
+
+      logAudit('EXPORT', 'instrumental_uploads', classroomId!, { type: 'ata_assembleia' });
+    } finally {
+      setGenerating(false);
+    }
   }
 
   const filteredUploads = uploads.filter((u) => {
@@ -679,11 +723,11 @@ export default function InstrumentaisPage() {
                     variant="outline"
                     size="sm"
                     onClick={gerarAtaAssembleia}
-                    disabled={!classroomInfo || students.length === 0}
+                    disabled={generating || !classroomInfo || students.length === 0}
                     className="shrink-0"
                   >
                     <FileDown className="h-4 w-4 mr-1" />
-                    Gerar PDF
+                    {generating ? 'Gerando...' : 'Gerar PDF'}
                   </Button>
                 </div>
               </CardContent>
