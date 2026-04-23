@@ -42,7 +42,10 @@ import {
   FileText,
   Library,
   ExternalLink,
+  FileDown,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 type TipoInstrumental =
   | 'ficha_biografica'
@@ -124,6 +127,13 @@ export default function InstrumentaisPage() {
   const [modelos, setModelos] = useState<Modelo[]>([]);
   const [loadingModelos, setLoadingModelos] = useState(true);
 
+  // ---- Dados da turma (para geração de PDF) ----
+  const [classroomInfo, setClassroomInfo] = useState<{
+    year_grade: string;
+    label: string;
+    school_name: string;
+  } | null>(null);
+
   const classroomId = profile?.classroom_id;
   const schoolId = profile?.school_id;
 
@@ -132,6 +142,7 @@ export default function InstrumentaisPage() {
     fetchUploads();
     fetchStudents();
     fetchModelos();
+    fetchClassroom();
   }, [classroomId]);
 
   async function fetchUploads() {
@@ -153,6 +164,22 @@ export default function InstrumentaisPage() {
       .eq('status', 'Ativo')
       .order('name');
     setStudents(data ?? []);
+  }
+
+  async function fetchClassroom() {
+    if (!classroomId) return;
+    const { data } = await supabase
+      .from('classrooms')
+      .select('year_grade, label, schools(name)')
+      .eq('id', classroomId)
+      .single();
+    if (data) {
+      setClassroomInfo({
+        year_grade: data.year_grade,
+        label: data.label,
+        school_name: (data as any).schools?.name ?? '',
+      });
+    }
   }
 
   async function fetchModelos() {
@@ -283,6 +310,118 @@ export default function InstrumentaisPage() {
     setReplaceFile(null);
     setReplacing(false);
     fetchUploads();
+  }
+
+  function gerarAtaAssembleia() {
+    if (!classroomInfo) return;
+
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageW = 210;
+    const margin = 20;
+    const contentW = pageW - margin * 2;
+
+    const escola = classroomInfo.school_name;
+    const turma = `${classroomInfo.year_grade} ${classroomInfo.label}`;
+    const dtName = profile?.full_name ?? '';
+
+    // === PÁGINA 1 ===
+
+    // Cabeçalho
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PPDT Ararendá', margin, 12);
+    doc.text('PROFESSOR DIRETOR DE TURMA - PDT', pageW / 2, 12, { align: 'center' });
+
+    // Linhas separadoras duplas
+    doc.setLineWidth(0.4);
+    doc.line(margin, 16, pageW - margin, 16);
+    doc.line(margin, 17.5, pageW - margin, 17.5);
+
+    // Título
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    const titulo = 'ATA DA ___ ASSEMBLEIA DOS REPRESENTANTES DE PAIS E RESPONSÁVEIS DA TURMA';
+    doc.text(titulo, pageW / 2, 26, { align: 'center' });
+
+    // Linha sob o título
+    doc.setLineWidth(0.3);
+    doc.line(margin, 29, pageW - margin, 29);
+
+    // Parágrafo inicial
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    let y = 38;
+
+    const paragrafo =
+      `Ao(s) _________ dia(s) do mês de ________________________ de _________________, às ____________ ` +
+      `horas, realizou-se uma reunião com os pais/responsáveis da turma do(a) ${turma} da Escola ` +
+      `${escola} com a seguinte pauta de trabalho.`;
+    const paragrafoLines = doc.splitTextToSize(paragrafo, contentW);
+    doc.text(paragrafoLines, margin, y, { align: 'justify' });
+    y += paragrafoLines.length * 6 + 10;
+
+    // Itens de pauta
+    for (let i = 1; i <= 6; i++) {
+      doc.text(`${i}.`, margin, y);
+      doc.line(margin + 7, y + 0.5, pageW - margin, y + 0.5);
+      y += 10;
+    }
+
+    y += 10;
+
+    // Encerramento
+    const encerramento =
+      'Nada mais havendo a ser tratado, deu por encerrada a Assembleia de Pais/responsáveis dos estudantes desta ' +
+      'turma e foi elaborada a presente ata que será assinada pelos organizadores da reunião e pelos pais/responsáveis.';
+    const encerramentoLines = doc.splitTextToSize(encerramento, contentW);
+    doc.text(encerramentoLines, margin, y, { align: 'justify' });
+    y += encerramentoLines.length * 6 + 14;
+
+    // Linhas de assinatura
+    const assinaturas = [
+      `Diretor(a) de turma: ${dtName}`,
+      'Secretário(a):',
+      'Professor(a):',
+      'Núcleo Gestor:',
+      'Núcleo Gestor:',
+    ];
+    for (const label of assinaturas) {
+      doc.text(label, margin, y);
+      const labelW = doc.getTextWidth(label);
+      doc.line(margin + labelW + 3, y + 0.5, pageW - margin, y + 0.5);
+      y += 11;
+    }
+
+    // === PÁGINA 2 — Lista de alunos ===
+    doc.addPage();
+
+    autoTable(doc, {
+      head: [['Nº', 'NOME DOS ESTUDANTES DA TURMA', 'PAIS/RESPONSÁVEIS (Assinatura)']],
+      body: students.map((s, i) => [(i + 1).toString(), s.name, '']),
+      startY: 15,
+      styles: { fontSize: 9, cellPadding: 3.5 },
+      headStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+        lineWidth: 0.3,
+        lineColor: [0, 0, 0],
+      },
+      bodyStyles: { lineWidth: 0.3, lineColor: [0, 0, 0], textColor: [0, 0, 0] },
+      columnStyles: {
+        0: { cellWidth: 14, halign: 'center' },
+        1: { cellWidth: 88 },
+        2: { cellWidth: 68 },
+      },
+      margin: { left: margin, right: margin },
+    });
+
+    const escolaSlug = escola.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase().slice(0, 25);
+    const turmaSlug = turma.replace(/\s+/g, '');
+    const ano = new Date().getFullYear();
+    doc.save(`ATA_ASSEMBLEIA_${escolaSlug}_${turmaSlug}_${ano}.pdf`);
+
+    logAudit('EXPORT', 'instrumental_uploads', classroomId!, { type: 'ata_assembleia' });
   }
 
   const filteredUploads = uploads.filter((u) => {
@@ -521,6 +660,36 @@ export default function InstrumentaisPage() {
 
         {/* ====== ABA: BIBLIOTECA DE MODELOS ====== */}
         <TabsContent value="biblioteca" className="pt-4 space-y-6">
+
+          {/* Gerados automaticamente */}
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold">Gerado Automaticamente</h2>
+            <Card>
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="font-medium">Ata de Assembleia dos Pais e Responsáveis</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {classroomInfo
+                        ? `${classroomInfo.school_name} — ${classroomInfo.year_grade} ${classroomInfo.label} · ${students.length} aluno(s)`
+                        : 'Carregando dados da turma...'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={gerarAtaAssembleia}
+                    disabled={!classroomInfo || students.length === 0}
+                    className="shrink-0"
+                  >
+                    <FileDown className="h-4 w-4 mr-1" />
+                    Gerar PDF
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {loadingModelos ? (
             <p className="text-muted-foreground">Carregando...</p>
           ) : modelos.length === 0 ? (
