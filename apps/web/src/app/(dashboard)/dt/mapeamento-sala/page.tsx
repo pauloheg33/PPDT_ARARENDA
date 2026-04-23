@@ -178,44 +178,50 @@ function MapeamentoSalaPageContent() {
   }
 
   async function exportPDF() {
-    // Desenha tudo num canvas HTML (suporte nativo a círculos) e embute no PDF
-    const S = 4; // px por mm (96 dpi ≈ 3.78; usando 4 para qualidade)
-    const PW = 297 * S; // canvas largura (A4 landscape)
-    const PH = 210 * S; // canvas altura
+    // Canvas A4 landscape a 4px/mm para boa qualidade de impressão
+    const S = 4;                          // px por mm
+    const pt = (n: number) => Math.round(n * 0.353 * S); // pontos tipográficos → px canvas
+    const mm = (n: number) => Math.round(n * S);          // mm → px canvas
+    const PW = mm(297);
+    const PH = mm(210);
 
     const canvas = document.createElement('canvas');
     canvas.width = PW;
     canvas.height = PH;
     const ctx = canvas.getContext('2d')!;
 
-    // Fundo branco
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, PW, PH);
 
-    const mg = 12 * S;
-    const hdrH = 30 * S;
+    const mg  = mm(10);   // margem lateral
+    const hdrH = mm(22);  // altura reservada ao cabeçalho
 
-    // ── Cabeçalho ──
+    // ── Cabeçalho ──────────────────────────────────────────
     ctx.textAlign = 'center';
+
+    // Título  (14 pt bold)
     ctx.fillStyle = '#111827';
-    ctx.font = `bold ${13 * S}px sans-serif`;
-    ctx.fillText('Mapeamento de Sala', PW / 2, 11 * S);
+    ctx.font = `bold ${pt(14)}px sans-serif`;
+    ctx.fillText('Mapeamento de Sala', PW / 2, mm(7));
 
-    ctx.font = `${8 * S}px sans-serif`;
+    // Subtítulo  (8.5 pt)
+    ctx.font = `${pt(8.5)}px sans-serif`;
     ctx.fillStyle = '#374151';
-    ctx.fillText(
-      `${classroom?.schools?.name ?? ''} — ${classroom?.year_grade} ${classroom?.label} (${classroom?.shift})`,
-      PW / 2, 18 * S,
-    );
+    const subtitulo = `${classroom?.schools?.name ?? ''} — ${classroom?.year_grade} ${classroom?.label} (${classroom?.shift})`;
+    ctx.fillText(subtitulo, PW / 2, mm(12));
 
-    // Barra QUADRO
+    // Barra "QUADRO / LOUSA"  (7 pt bold)
+    const barW = mm(72), barH = mm(5.5);
+    const barX = PW / 2 - barW / 2, barY = mm(14.5);
     ctx.fillStyle = '#e5e7eb';
-    ctx.fillRect(PW / 2 - 38 * S, 21 * S, 76 * S, 7 * S);
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW, barH, mm(1));
+    ctx.fill();
     ctx.fillStyle = '#374151';
-    ctx.font = `bold ${7 * S}px sans-serif`;
-    ctx.fillText('QUADRO / LOUSA', PW / 2, 26 * S);
+    ctx.font = `bold ${pt(7)}px sans-serif`;
+    ctx.fillText('QUADRO / LOUSA', PW / 2, mm(14.5) + barH * 0.68);
 
-    // ── Carregar todas as fotos em paralelo ──
+    // ── Carregar todas as fotos em paralelo ──────────────────
     const imgMap = new Map<string, HTMLImageElement>();
     await Promise.all(
       students
@@ -225,21 +231,23 @@ function MapeamentoSalaPageContent() {
             new Promise<void>((resolve) => {
               const img = new window.Image();
               img.crossOrigin = 'anonymous';
-              img.onload = () => { imgMap.set(s.id, img); resolve(); };
+              img.onload  = () => { imgMap.set(s.id, img); resolve(); };
               img.onerror = () => resolve();
               img.src = s.photoUrl!;
             }),
         ),
     );
 
-    // ── Grid ──
-    const gridW = PW - mg * 2;
-    const gridH = PH - hdrH - mg;
-    const cellW = gridW / layout.cols;
-    const cellH = gridH / layout.rows;
-    const namePad = 8 * S;
-    const pad = 2 * S;
-    const photoR = Math.min(cellW - pad * 2, cellH - namePad - pad * 2) / 2; // raio
+    // ── Grid ────────────────────────────────────────────────
+    const gridW   = PW - mg * 2;
+    const gridH   = PH - hdrH - mm(8); // 8 mm de margem inferior
+    const cellW   = gridW / layout.cols;
+    const cellH   = gridH / layout.rows;
+
+    // Raio da foto: cabe na célula deixando espaço para o nome
+    const namePad = mm(7);   // altura reservada ao nome (abaixo da foto)
+    const pad     = mm(2);   // padding interno das bordas
+    const photoR  = Math.min(cellW - pad * 2, cellH - namePad - pad * 2) / 2;
 
     for (let r = 0; r < layout.rows; r++) {
       for (let c = 0; c < layout.cols; c++) {
@@ -249,13 +257,13 @@ function MapeamentoSalaPageContent() {
 
         // Borda da célula
         ctx.strokeStyle = '#d1d5db';
-        ctx.lineWidth = 0.5 * S;
+        ctx.lineWidth = mm(0.3);
         ctx.strokeRect(x, y, cellW, cellH);
 
         if (!student) continue;
 
-        const cx = x + cellW / 2;         // centro X da célula
-        const cy = y + pad + photoR;      // centro Y da foto
+        const cx = x + cellW / 2;
+        const cy = y + pad + photoR;
 
         // ── Foto circular ──
         const img = imgMap.get(student.id);
@@ -266,58 +274,60 @@ function MapeamentoSalaPageContent() {
 
         if (img) {
           ctx.clip();
-          // object-cover: escala para cobrir o círculo sem deformar
           const sc = Math.max((photoR * 2) / img.width, (photoR * 2) / img.height);
           const dw = img.width * sc;
           const dh = img.height * sc;
           ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
         } else {
-          // Placeholder cinza
           ctx.fillStyle = '#e5e7eb';
           ctx.fill();
         }
         ctx.restore();
 
-        // Borda do círculo
-        ctx.strokeStyle = '#d1d5db';
-        ctx.lineWidth = 0.8 * S;
+        // Anel do círculo
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = mm(0.5);
         ctx.beginPath();
         ctx.arc(cx, cy, photoR, 0, Math.PI * 2);
         ctx.stroke();
 
-        // ── Nome ──
-        const parts = student.name.trim().split(' ');
+        // ── Nome  (6 pt bold, uppercase) ──
+        const parts = student.name.trim().toUpperCase().split(' ');
         const displayName =
           parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
-        const fontSize = Math.max(5 * S, Math.min(7 * S, cellW / 9));
-        ctx.font = `bold ${fontSize}px sans-serif`;
+
+        // Fonte proporcional à célula, mínimo 5pt máximo 6.5pt
+        const namePx = Math.max(pt(5), Math.min(pt(6.5), cellW / 16));
+        ctx.font      = `bold ${namePx}px sans-serif`;
         ctx.fillStyle = '#111827';
         ctx.textAlign = 'center';
-        ctx.fillText(
-          displayName.length > 16 ? displayName.substring(0, 15) + '.' : displayName,
-          cx,
-          y + cellH - 2 * S,
-        );
+
+        // Se o nome ainda for largo demais, truncar com '.'
+        let label = displayName;
+        while (ctx.measureText(label).width > cellW - pad * 2 && label.length > 4) {
+          label = label.slice(0, -2) + '.';
+        }
+        ctx.fillText(label, cx, y + cellH - mm(1.5));
 
         // ── Badge líder / vice ──
         if (student.is_leader || student.is_vice_leader) {
-          const bw = 9 * S, bh = 3.5 * S, br = 1.5 * S;
-          const bx = x + cellW - bw - 1 * S;
-          const by = y + 1 * S;
+          const bw = mm(8), bh = mm(3), br = mm(1);
+          const bx = x + cellW - bw - mm(1);
+          const by = y + mm(1);
           ctx.fillStyle = student.is_leader ? '#16a34a' : '#6b7280';
           ctx.beginPath();
           ctx.roundRect(bx, by, bw, bh, br);
           ctx.fill();
           ctx.fillStyle = '#ffffff';
-          ctx.font = `bold ${3.5 * S}px sans-serif`;
+          ctx.font = `bold ${pt(4)}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.fillText(student.is_leader ? 'LÍDER' : 'VICE', bx + bw / 2, by + bh * 0.72);
         }
       }
     }
 
-    // ── Embute canvas como imagem no PDF ──
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    // ── Embute canvas no PDF ──
+    const imgData = canvas.toDataURL('image/jpeg', 0.93);
     const doc = new jsPDF('l', 'mm', 'a4');
     doc.addImage(imgData, 'JPEG', 0, 0, 297, 210);
     doc.save(`mapeamento_sala_${classroom?.year_grade}_${classroom?.label}.pdf`);
