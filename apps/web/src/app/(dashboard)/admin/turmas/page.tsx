@@ -65,23 +65,18 @@ export default function TurmasPage() {
   const isAdmin = profile?.role === 'ADMIN_SME';
 
   useEffect(() => {
-    Promise.all([fetchClassrooms(), fetchSchools()]);
+    async function loadAll() {
+      setLoading(true);
+      const [classRes, schoolRes] = await Promise.all([
+        supabase.from('classrooms').select('*, schools(name)').order('year_grade'),
+        supabase.from('schools').select('id, name').order('name'),
+      ]);
+      setClassrooms((classRes.data as any[]) ?? []);
+      setSchools(schoolRes.data ?? []);
+      setLoading(false);
+    }
+    loadAll();
   }, []);
-
-  async function fetchClassrooms() {
-    setLoading(true);
-    const { data } = await supabase
-      .from('classrooms')
-      .select('*, schools(name)')
-      .order('year_grade');
-    setClassrooms((data as any[]) ?? []);
-    setLoading(false);
-  }
-
-  async function fetchSchools() {
-    const { data } = await supabase.from('schools').select('id, name').order('name');
-    setSchools(data ?? []);
-  }
 
   function openCreate() {
     setEditing(null);
@@ -104,32 +99,33 @@ export default function TurmasPage() {
     if (!form.school_id || !form.year_grade || !form.label) return;
 
     if (editing) {
-      const { error } = await supabase
-        .from('classrooms')
-        .update(form)
-        .eq('id', editing.id);
+      const { error } = await supabase.from('classrooms').update(form).eq('id', editing.id);
       if (!error) {
         await logAudit('UPDATE', 'classrooms', editing.id, form);
-        // Garantir access_lock
+        const school = schools.find((s) => s.id === form.school_id);
+        setClassrooms((prev) =>
+          prev.map((c) =>
+            c.id === editing.id
+              ? { ...c, ...form, schools: { name: school?.name ?? '' } }
+              : c
+          )
+        );
       }
     } else {
-      const { data, error } = await supabase
-        .from('classrooms')
-        .insert(form)
-        .select()
-        .single();
+      const { data, error } = await supabase.from('classrooms').insert(form).select().single();
       if (!error && data) {
         await logAudit('CREATE', 'classrooms', data.id, form);
-        // Criar access_lock padrão
-        await supabase.from('access_locks').insert({
-          classroom_id: data.id,
-          bio_form_locked: true,
-        });
+        await supabase.from('access_locks').insert({ classroom_id: data.id, bio_form_locked: true });
+        const school = schools.find((s) => s.id === form.school_id);
+        setClassrooms((prev) =>
+          [...prev, { ...data, schools: { name: school?.name ?? '' } } as Classroom].sort((a, b) =>
+            (a.year_grade ?? '').localeCompare(b.year_grade ?? '', 'pt-BR')
+          )
+        );
       }
     }
 
     setDialogOpen(false);
-    fetchClassrooms();
   }
 
   async function handleDelete(c: Classroom) {
@@ -137,7 +133,7 @@ export default function TurmasPage() {
     const { error } = await supabase.from('classrooms').delete().eq('id', c.id);
     if (!error) {
       await logAudit('DELETE', 'classrooms', c.id);
-      fetchClassrooms();
+      setClassrooms((prev) => prev.filter((cl) => cl.id !== c.id));
     }
   }
 

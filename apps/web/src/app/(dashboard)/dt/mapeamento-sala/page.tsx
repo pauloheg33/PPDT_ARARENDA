@@ -178,85 +178,149 @@ function MapeamentoSalaPageContent() {
   }
 
   async function exportPDF() {
-    const doc = new jsPDF('l', 'mm', 'a4');
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+    // Desenha tudo num canvas HTML (suporte nativo a círculos) e embute no PDF
+    const S = 4; // px por mm (96 dpi ≈ 3.78; usando 4 para qualidade)
+    const PW = 297 * S; // canvas largura (A4 landscape)
+    const PH = 210 * S; // canvas altura
 
-    doc.setFontSize(16);
-    doc.text('Mapeamento de Sala', pageWidth / 2, 12, { align: 'center' });
-    doc.setFontSize(10);
-    doc.text(`${classroom?.schools?.name ?? ''} — ${classroom?.year_grade} ${classroom?.label} (${classroom?.shift})`, pageWidth / 2, 18, { align: 'center' });
+    const canvas = document.createElement('canvas');
+    canvas.width = PW;
+    canvas.height = PH;
+    const ctx = canvas.getContext('2d')!;
 
-    doc.setFillColor(200, 200, 200);
-    doc.rect(pageWidth / 2 - 40, 22, 80, 6, 'F');
-    doc.setFontSize(8);
-    doc.text('QUADRO', pageWidth / 2, 26, { align: 'center' });
+    // Fundo branco
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, PW, PH);
 
-    const gridStartY = 32;
-    const cellW = Math.min(40, (pageWidth - 30) / layout.cols);
-    const cellH = Math.min(35, (pageHeight - gridStartY - 15) / layout.rows);
-    const gridStartX = (pageWidth - layout.cols * cellW) / 2;
+    const mg = 12 * S;
+    const hdrH = 30 * S;
+
+    // ── Cabeçalho ──
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#111827';
+    ctx.font = `bold ${13 * S}px sans-serif`;
+    ctx.fillText('Mapeamento de Sala', PW / 2, 11 * S);
+
+    ctx.font = `${8 * S}px sans-serif`;
+    ctx.fillStyle = '#374151';
+    ctx.fillText(
+      `${classroom?.schools?.name ?? ''} — ${classroom?.year_grade} ${classroom?.label} (${classroom?.shift})`,
+      PW / 2, 18 * S,
+    );
+
+    // Barra QUADRO
+    ctx.fillStyle = '#e5e7eb';
+    ctx.fillRect(PW / 2 - 38 * S, 21 * S, 76 * S, 7 * S);
+    ctx.fillStyle = '#374151';
+    ctx.font = `bold ${7 * S}px sans-serif`;
+    ctx.fillText('QUADRO / LOUSA', PW / 2, 26 * S);
+
+    // ── Carregar todas as fotos em paralelo ──
+    const imgMap = new Map<string, HTMLImageElement>();
+    await Promise.all(
+      students
+        .filter((s) => s.photoUrl)
+        .map(
+          (s) =>
+            new Promise<void>((resolve) => {
+              const img = new window.Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => { imgMap.set(s.id, img); resolve(); };
+              img.onerror = () => resolve();
+              img.src = s.photoUrl!;
+            }),
+        ),
+    );
+
+    // ── Grid ──
+    const gridW = PW - mg * 2;
+    const gridH = PH - hdrH - mg;
+    const cellW = gridW / layout.cols;
+    const cellH = gridH / layout.rows;
+    const namePad = 8 * S;
+    const pad = 2 * S;
+    const photoR = Math.min(cellW - pad * 2, cellH - namePad - pad * 2) / 2; // raio
 
     for (let r = 0; r < layout.rows; r++) {
       for (let c = 0; c < layout.cols; c++) {
-        const x = gridStartX + c * cellW;
-        const y = gridStartY + r * cellH;
-        const studentId = layout.seats[r]?.[c];
-        const student = getStudentById(studentId);
+        const x = mg + c * cellW;
+        const y = hdrH + r * cellH;
+        const student = getStudentById(layout.seats[r]?.[c]);
 
-        // Desenhar borda da célula
-        doc.setDrawColor(180);
-        doc.rect(x, y, cellW, cellH);
+        // Borda da célula
+        ctx.strokeStyle = '#d1d5db';
+        ctx.lineWidth = 0.5 * S;
+        ctx.strokeRect(x, y, cellW, cellH);
 
-        if (student) {
-          // Desenhar foto se existir
-          if (student.photoUrl) {
-            try {
-              const imgData = await loadImage(student.photoUrl);
-              const photoW = cellW * 0.7;
-              const photoH = cellH * 0.7;
-              const photoX = x + (cellW - photoW) / 2;
-              const photoY = y + 2;
-              doc.addImage(imgData, 'JPEG', photoX, photoY, photoW, photoH);
-            } catch (e) {
-              console.error('Erro ao carregar foto para PDF:', e);
-            }
-          }
+        if (!student) continue;
 
-          // Desenhar nome
-          doc.setFontSize(5);
-          const name = student.name.length > 16 ? student.name.substring(0, 16) + '...' : student.name;
-          doc.text(name, x + cellW / 2, y + cellH - 4, { align: 'center' });
+        const cx = x + cellW / 2;         // centro X da célula
+        const cy = y + pad + photoR;      // centro Y da foto
 
-          // Desenhar indicadores de líder/vice-líder
-          if (student.is_leader) {
-            doc.setFontSize(4);
-            doc.text('L', x + cellW - 2, y + 2);
-          } else if (student.is_vice_leader) {
-            doc.setFontSize(4);
-            doc.text('V', x + cellW - 2, y + 2);
-          }
+        // ── Foto circular ──
+        const img = imgMap.get(student.id);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, photoR, 0, Math.PI * 2);
+        ctx.closePath();
+
+        if (img) {
+          ctx.clip();
+          // object-cover: escala para cobrir o círculo sem deformar
+          const sc = Math.max((photoR * 2) / img.width, (photoR * 2) / img.height);
+          const dw = img.width * sc;
+          const dh = img.height * sc;
+          ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+        } else {
+          // Placeholder cinza
+          ctx.fillStyle = '#e5e7eb';
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Borda do círculo
+        ctx.strokeStyle = '#d1d5db';
+        ctx.lineWidth = 0.8 * S;
+        ctx.beginPath();
+        ctx.arc(cx, cy, photoR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // ── Nome ──
+        const parts = student.name.trim().split(' ');
+        const displayName =
+          parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+        const fontSize = Math.max(5 * S, Math.min(7 * S, cellW / 9));
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = '#111827';
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          displayName.length > 16 ? displayName.substring(0, 15) + '.' : displayName,
+          cx,
+          y + cellH - 2 * S,
+        );
+
+        // ── Badge líder / vice ──
+        if (student.is_leader || student.is_vice_leader) {
+          const bw = 9 * S, bh = 3.5 * S, br = 1.5 * S;
+          const bx = x + cellW - bw - 1 * S;
+          const by = y + 1 * S;
+          ctx.fillStyle = student.is_leader ? '#16a34a' : '#6b7280';
+          ctx.beginPath();
+          ctx.roundRect(bx, by, bw, bh, br);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${3.5 * S}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText(student.is_leader ? 'LÍDER' : 'VICE', bx + bw / 2, by + bh * 0.72);
         }
       }
     }
 
+    // ── Embute canvas como imagem no PDF ──
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const doc = new jsPDF('l', 'mm', 'a4');
+    doc.addImage(imgData, 'JPEG', 0, 0, 297, 210);
     doc.save(`mapeamento_sala_${classroom?.year_grade}_${classroom?.label}.pdf`);
-  }
-
-  function loadImage(url: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const img = new window.Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        canvas.getContext('2d')?.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/jpeg'));
-      };
-      img.onerror = reject;
-      img.src = url;
-    });
   }
 
   if (!turmaId) {
