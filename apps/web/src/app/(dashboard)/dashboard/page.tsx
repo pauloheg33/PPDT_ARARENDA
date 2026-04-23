@@ -8,19 +8,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   School,
   Users,
   BookOpen,
   CheckCircle,
-  AlertCircle,
   Camera,
   FileText,
   MapPin,
-  Unlock,
   ArrowRight,
+  Library,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DtTurmaSelector } from '@/components/dt-turma-selector';
+import { ROLE_LABELS, type Role } from '@/lib/roles';
 
 interface Stats {
   totalSchools: number;
@@ -35,6 +43,7 @@ interface Stats {
 export default function DashboardPage() {
   const { profile, user, signOut } = useAuth();
   const router = useRouter();
+
   const [stats, setStats] = useState<Stats>({
     totalSchools: 0,
     totalClassrooms: 0,
@@ -45,8 +54,8 @@ export default function DashboardPage() {
     photosMissing: 0,
   });
   const [classroomStats, setClassroomStats] = useState<any[]>([]);
-  const [dtStudents, setDtStudents] = useState<any[]>([]);
-  const [lockStatus, setLockStatus] = useState<any>(null);
+  const [dtPendingBios, setDtPendingBios] = useState<any[]>([]);
+  const [dtPendingPhotos, setDtPendingPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,7 +65,6 @@ export default function DashboardPage() {
         const schoolId = profile?.school_id;
         const classroomId = profile?.classroom_id;
 
-        // Role-filtered queries — RLS also enforces, but we optimize here
         let schoolsQuery = supabase.from('schools').select('id', { count: 'exact', head: true });
         let classroomsQuery = supabase.from('classrooms').select('id', { count: 'exact', head: true });
         let studentsQuery = supabase.from('students').select('id', { count: 'exact', head: true });
@@ -69,7 +77,7 @@ export default function DashboardPage() {
           statsQuery = statsQuery.eq('school_id', schoolId);
         } else if (role === 'DT' && classroomId) {
           classroomsQuery = classroomsQuery.eq('id', classroomId);
-          studentsQuery = studentsQuery.eq('classroom_id', classroomId);
+          studentsQuery = studentsQuery.eq('classroom_id', classroomId).eq('status', 'Ativo');
           statsQuery = statsQuery.eq('classroom_id', classroomId);
         }
 
@@ -80,7 +88,14 @@ export default function DashboardPage() {
           statsQuery,
         ]);
 
-        const csData = statsRes.data ?? [];
+        const csData = (statsRes.data ?? []).sort((a: any, b: any) => {
+          const schoolCmp = (a.school_name ?? '').localeCompare(b.school_name ?? '', 'pt-BR');
+          if (schoolCmp !== 0) return schoolCmp;
+          const yearA = parseInt(a.year_grade) || 0;
+          const yearB = parseInt(b.year_grade) || 0;
+          if (yearA !== yearB) return yearA - yearB;
+          return (a.label ?? '').localeCompare(b.label ?? '', 'pt-BR');
+        });
         setClassroomStats(csData);
 
         setStats({
@@ -93,9 +108,8 @@ export default function DashboardPage() {
           photosMissing: csData.reduce((s: number, r: any) => s + (r.photos_missing || 0), 0),
         });
 
-        // DT-specific: load students with pending bios and lock status for quick actions
         if (role === 'DT' && classroomId) {
-          const [studentsListRes, lockRes] = await Promise.all([
+          const [studentsListRes, photosRes] = await Promise.all([
             supabase
               .from('students')
               .select('id, name, enrollment_code, bio_forms(completed)')
@@ -103,17 +117,15 @@ export default function DashboardPage() {
               .eq('status', 'Ativo')
               .order('name'),
             supabase
-              .from('access_locks')
-              .select('*')
-              .eq('classroom_id', classroomId)
-              .single(),
+              .from('student_photos')
+              .select('student_id')
+              .eq('classroom_id', classroomId),
           ]);
+
           const allStudents = studentsListRes.data ?? [];
-          const pendingStudents = allStudents.filter(
-            (s: any) => !s.bio_forms?.[0]?.completed
-          );
-          setDtStudents(pendingStudents);
-          setLockStatus(lockRes.data);
+          const withPhoto = new Set((photosRes.data ?? []).map((p: any) => p.student_id));
+          setDtPendingBios(allStudents.filter((s: any) => !s.bio_forms?.[0]?.completed));
+          setDtPendingPhotos(allStudents.filter((s: any) => !withPhoto.has(s.id)));
         }
       } catch (err) {
         console.error('Erro ao carregar dashboard:', err);
@@ -125,7 +137,6 @@ export default function DashboardPage() {
     if (profile) {
       fetchStats();
     } else if (profile === null) {
-      // profile é null — pode não existir no banco
       setLoading(false);
     }
   }, [profile]);
@@ -159,28 +170,50 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
     );
   }
 
-  const role = profile?.role;
+  const role = profile.role as Role;
 
-  // DT sem turma selecionada: mostrar tela de escolha
-  if (role === 'DT' && !profile?.classroom_id) {
+  if (role === 'DT' && !profile.classroom_id) {
     return <DtTurmaSelector />;
   }
 
+  const hora = new Date().getHours();
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+  const primeiroNome = profile.full_name;
+
+  const bioPct = stats.totalStudents > 0
+    ? Math.round((stats.bioCompleted / stats.totalStudents) * 100)
+    : 0;
+  const photoPct = stats.totalStudents > 0
+    ? Math.round((stats.photosUploaded / stats.totalStudents) * 100)
+    : 0;
+
+  const dtClassroom = classroomStats[0];
+  const dtSubtitle = role === 'DT' && dtClassroom
+    ? `${dtClassroom.year_grade} ${dtClassroom.label} · ${dtClassroom.school_name}`
+    : null;
+
+  const gestorEscola = role === 'GESTOR_ESCOLA' && classroomStats[0]?.school_name
+    ? classroomStats[0].school_name
+    : null;
+
   return (
     <div className="space-y-6">
+
+      {/* Saudação */}
       <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-3xl font-bold">{saudacao}, {primeiroNome}!</h1>
         <p className="text-muted-foreground">
-          {role === 'ADMIN_SME' || role === 'COORD_PPDT'
-            ? 'Visão geral da rede municipal'
-            : role === 'GESTOR_ESCOLA'
-            ? 'Visão geral da escola'
-            : 'Visão da turma'}
+          {role === 'DT' && dtSubtitle
+            ? `Professor Diretor de Turma — ${dtSubtitle}`
+            : role === 'GESTOR_ESCOLA' && gestorEscola
+            ? `Gestor Escolar — ${gestorEscola}`
+            : ROLE_LABELS[role]}
         </p>
       </div>
 
-      {/* Cards resumo */}
+      {/* Cards de resumo */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+
         {(role === 'ADMIN_SME' || role === 'COORD_PPDT') && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -189,19 +222,25 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalSchools}</div>
+              <p className="text-xs text-muted-foreground">na rede municipal</p>
             </CardContent>
           </Card>
         )}
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Turmas</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalClassrooms}</div>
-          </CardContent>
-        </Card>
+        {role !== 'DT' && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Turmas</CardTitle>
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalClassrooms}</div>
+              <p className="text-xs text-muted-foreground">
+                {role === 'GESTOR_ESCOLA' ? 'na escola' : 'na rede'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -210,83 +249,54 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalStudents}</div>
+            <p className="text-xs text-muted-foreground">
+              {role === 'DT' ? 'na turma' : role === 'GESTOR_ESCOLA' ? 'na escola' : 'matriculados'}
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Fichas Completas</CardTitle>
+            <CardTitle className="text-sm font-medium">Fichas Biográficas</CardTitle>
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.bioCompleted}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.bioPending} pendente(s)
+            <div className="text-2xl font-bold text-green-600">
+              {stats.bioCompleted}
+              <span className="text-base font-normal text-muted-foreground">/{stats.totalStudents}</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {bioPct}% concluídas · {stats.bioPending} pendente(s)
             </p>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Pendências */}
-      <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <AlertCircle className="h-5 w-5 text-yellow-500" />
-              Fichas Biográficas Pendentes
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Fotos Cadastradas</CardTitle>
+            <Camera className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            {stats.bioPending === 0 ? (
-              <p className="text-sm text-muted-foreground">Todas as fichas estão completas!</p>
-            ) : (
-              <p className="text-sm">
-                <span className="font-bold text-yellow-600">{stats.bioPending}</span> aluno(s) sem
-                ficha biográfica completa.
-              </p>
-            )}
+            <div className="text-2xl font-bold text-blue-600">
+              {stats.photosUploaded}
+              <span className="text-base font-normal text-muted-foreground">/{stats.totalStudents}</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {photoPct}% com foto · {stats.photosMissing} sem foto
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Camera className="h-5 w-5 text-blue-500" />
-              Fotos Pendentes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stats.photosMissing === 0 ? (
-              <p className="text-sm text-muted-foreground">Todos os alunos possuem foto!</p>
-            ) : (
-              <p className="text-sm">
-                <span className="font-bold text-blue-600">{stats.photosMissing}</span> aluno(s) sem
-                foto cadastrada.
-              </p>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
-      {/* DT Quick Actions */}
-      {role === 'DT' && profile?.classroom_id && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="text-lg">Ações Rápidas — Minha Turma</CardTitle>
+      {/* DT: Acesso rápido (sem liberação) */}
+      {role === 'DT' && profile.classroom_id && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Acesso Rápido</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Link href={`/dt/liberacao?turmaId=${profile.classroom_id}`}>
-                <Button variant="outline" className="w-full justify-start gap-2">
-                  <Unlock className="h-4 w-4" />
-                  Liberação de Fichas
-                  {lockStatus && (
-                    <Badge variant={lockStatus.bio_form_locked ? 'destructive' : 'success'} className="ml-auto">
-                      {lockStatus.bio_form_locked ? 'Bloq.' : 'Liber.'}
-                    </Badge>
-                  )}
-                </Button>
-              </Link>
               <Link href={`/dt/registro-fotografico?turmaId=${profile.classroom_id}`}>
                 <Button variant="outline" className="w-full justify-start gap-2">
                   <Camera className="h-4 w-4" />
@@ -305,39 +315,129 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
                   Relatórios
                 </Button>
               </Link>
+              <Link href="/dt/instrumentais">
+                <Button variant="outline" className="w-full justify-start gap-2">
+                  <Library className="h-4 w-4" />
+                  Instrumentais
+                </Button>
+              </Link>
             </div>
-
-            {/* DT pending students */}
-            {dtStudents.length > 0 && stats.bioPending > 0 && (
-              <div className="mt-4">
-                <h4 className="text-sm font-semibold mb-2">Alunos com ficha pendente:</h4>
-                <div className="flex flex-wrap gap-2">
-                  {dtStudents.slice(0, 10).map((s) => (
-                    <Link
-                      key={s.id}
-                      href={`/dt/ficha-biografica?turmaId=${profile.classroom_id}&alunoId=${s.id}`}
-                    >
-                      <Badge variant="outline" className="cursor-pointer hover:bg-primary/10">
-                        {s.name.split(' ')[0]}
-                        <ArrowRight className="ml-1 h-3 w-3" />
-                      </Badge>
-                    </Link>
-                  ))}
-                  {dtStudents.length > 10 && (
-                    <Badge variant="secondary">+{dtStudents.length - 10} mais</Badge>
-                  )}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
+      )}
+
+      {/* DT: Pendências por aluno */}
+      {role === 'DT' && (
+        <div className="grid gap-4 md:grid-cols-2">
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CheckCircle className="h-4 w-4 text-yellow-500" />
+                Fichas Pendentes
+                <Badge
+                  variant={dtPendingBios.length === 0 ? 'success' : 'warning'}
+                  className="ml-auto"
+                >
+                  {dtPendingBios.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dtPendingBios.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Todas as fichas estão completas!</p>
+              ) : (
+                <div className="max-h-60 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Aluno</TableHead>
+                        <TableHead>Matrícula</TableHead>
+                        <TableHead className="w-8" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dtPendingBios.map((s) => (
+                        <TableRow key={s.id}>
+                          <TableCell className="text-sm font-medium">{s.name}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {s.enrollment_code ?? '—'}
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              href={`/dt/ficha-biografica?turmaId=${profile.classroom_id}&alunoId=${s.id}`}
+                            >
+                              <ArrowRight className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Camera className="h-4 w-4 text-blue-500" />
+                Fotos Pendentes
+                <Badge
+                  variant={dtPendingPhotos.length === 0 ? 'success' : 'warning'}
+                  className="ml-auto"
+                >
+                  {dtPendingPhotos.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dtPendingPhotos.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Todos os alunos têm foto cadastrada!</p>
+              ) : (
+                <div className="max-h-60 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Aluno</TableHead>
+                        <TableHead>Matrícula</TableHead>
+                        <TableHead className="w-8" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dtPendingPhotos.map((s) => (
+                        <TableRow key={s.id}>
+                          <TableCell className="text-sm font-medium">{s.name}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {s.enrollment_code ?? '—'}
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              href={`/dt/registro-fotografico?turmaId=${profile.classroom_id}`}
+                            >
+                              <ArrowRight className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+        </div>
       )}
 
       {/* Tabela por turma */}
       {classroomStats.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Estatísticas por Turma</CardTitle>
+            <CardTitle className="text-base">
+              {role === 'DT' ? 'Resumo da Turma' : 'Acompanhamento por Turma'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -345,55 +445,61 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
                 <thead>
                   <tr className="border-b text-left">
                     {(role === 'ADMIN_SME' || role === 'COORD_PPDT') && (
-                      <th className="p-2">Escola</th>
+                      <th className="p-2 font-medium">Escola</th>
                     )}
-                    <th className="p-2">Turma</th>
-                    <th className="p-2">Turno</th>
-                    <th className="p-2 text-center">Alunos</th>
-                    <th className="p-2 text-center">Fichas OK</th>
-                    <th className="p-2 text-center">Fichas Pend.</th>
-                    <th className="p-2 text-center">Fotos</th>
-                    <th className="p-2 text-center">Progresso</th>
+                    <th className="p-2 font-medium">Turma</th>
+                    <th className="p-2 font-medium">Turno</th>
+                    <th className="p-2 font-medium text-center">Alunos</th>
+                    <th className="p-2 font-medium text-center">Fichas OK</th>
+                    <th className="p-2 font-medium text-center">Pendentes</th>
+                    <th className="p-2 font-medium text-center">Fotos</th>
+                    <th className="p-2 font-medium text-center">Progresso</th>
                   </tr>
                 </thead>
                 <tbody>
                   {classroomStats.map((cs: any) => {
-                    const pct =
-                      cs.total_students > 0
-                        ? Math.round((cs.bio_completed / cs.total_students) * 100)
-                        : 0;
+                    const rowBioPct = cs.total_students > 0
+                      ? Math.round((cs.bio_completed / cs.total_students) * 100)
+                      : 0;
+                    const rowPhotoPct = cs.total_students > 0
+                      ? Math.round((cs.photos_uploaded / cs.total_students) * 100)
+                      : 0;
                     return (
                       <tr key={cs.classroom_id} className="border-b hover:bg-muted/50">
                         {(role === 'ADMIN_SME' || role === 'COORD_PPDT') && (
                           <td className="p-2 text-muted-foreground">{cs.school_name ?? '—'}</td>
                         )}
-                        <td className="p-2 font-medium">
-                          {cs.year_grade} {cs.label}
-                        </td>
-                        <td className="p-2">{cs.shift}</td>
+                        <td className="p-2 font-medium">{cs.year_grade} {cs.label}</td>
+                        <td className="p-2 text-muted-foreground">{cs.shift}</td>
                         <td className="p-2 text-center">{cs.total_students}</td>
                         <td className="p-2 text-center">
                           <Badge variant="success">{cs.bio_completed}</Badge>
                         </td>
                         <td className="p-2 text-center">
-                          {cs.bio_pending > 0 ? (
-                            <Badge variant="warning">{cs.bio_pending}</Badge>
-                          ) : (
-                            <Badge variant="success">0</Badge>
-                          )}
+                          {cs.bio_pending > 0
+                            ? <Badge variant="warning">{cs.bio_pending}</Badge>
+                            : <Badge variant="success">0</Badge>
+                          }
                         </td>
                         <td className="p-2 text-center">
-                          {cs.photos_uploaded}/{cs.total_students}
+                          <span className={rowPhotoPct === 100 ? 'text-green-600 font-medium' : ''}>
+                            {cs.photos_uploaded}/{cs.total_students}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({rowPhotoPct}%)
+                          </span>
                         </td>
-                        <td className="p-2">
+                        <td className="p-2 min-w-[120px]">
                           <div className="flex items-center gap-2">
                             <div className="h-2 flex-1 bg-muted rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-primary rounded-full transition-all"
-                                style={{ width: `${pct}%` }}
+                                style={{ width: `${rowBioPct}%` }}
                               />
                             </div>
-                            <span className="text-xs text-muted-foreground w-8">{pct}%</span>
+                            <span className="text-xs text-muted-foreground w-8 text-right">
+                              {rowBioPct}%
+                            </span>
                           </div>
                         </td>
                       </tr>
@@ -405,6 +511,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
           </CardContent>
         </Card>
       )}
+
     </div>
   );
 }

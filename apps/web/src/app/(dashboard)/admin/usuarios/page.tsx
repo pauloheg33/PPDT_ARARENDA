@@ -97,8 +97,16 @@ export default function UsuariosPage() {
       return;
     }
 
-    // Aguardar o trigger criar o profile
-    await new Promise((r) => setTimeout(r, 1000));
+    // Poll until DB trigger creates the profile (max 5 × 600ms = 3s)
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await new Promise((r) => setTimeout(r, 600));
+      const { data: profileCheck } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('user_id', authData.user.id)
+        .maybeSingle();
+      if (profileCheck) break;
+    }
 
     // Atualizar role, school_id e classroom_id via UPDATE autenticado (RLS exige ADMIN_SME)
     const { error: updateError } = await supabase
