@@ -88,7 +88,14 @@ export default function DashboardPage() {
           statsQuery,
         ]);
 
-        const csData = statsRes.data ?? [];
+        const csData = (statsRes.data ?? []).sort((a: any, b: any) => {
+          const schoolCmp = (a.school_name ?? '').localeCompare(b.school_name ?? '', 'pt-BR');
+          if (schoolCmp !== 0) return schoolCmp;
+          const yearA = parseInt(a.year_grade) || 0;
+          const yearB = parseInt(b.year_grade) || 0;
+          if (yearA !== yearB) return yearA - yearB;
+          return (a.label ?? '').localeCompare(b.label ?? '', 'pt-BR');
+        });
         setClassroomStats(csData);
 
         setStats({
@@ -171,7 +178,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
 
   const hora = new Date().getHours();
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
-  const primeiroNome = profile.full_name.split(' ')[0];
+  const primeiroNome = profile.full_name;
 
   const bioPct = stats.totalStudents > 0
     ? Math.round((stats.bioCompleted / stats.totalStudents) * 100)
