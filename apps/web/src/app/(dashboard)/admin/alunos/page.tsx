@@ -137,18 +137,44 @@ export default function AlunosPage() {
 
     if (editing) {
       const { error } = await supabase.from('students').update(payload).eq('id', editing.id);
-      if (!error) await logAudit('UPDATE', 'students', editing.id, { name: form.name });
+      if (!error) {
+        await logAudit('UPDATE', 'students', editing.id, { name: form.name });
+        const cls = classrooms.find((c: any) => c.id === form.classroom_id);
+        const school = schools.find((s: any) => s.id === form.school_id);
+        setStudents((prev) =>
+          prev.map((s) =>
+            s.id === editing.id
+              ? {
+                  ...s,
+                  ...payload,
+                  classrooms: cls
+                    ? { year_grade: cls.year_grade, label: cls.label, schools: { name: school?.name ?? '' } }
+                    : s.classrooms,
+                }
+              : s
+          )
+        );
+      }
     } else {
       const { data, error } = await supabase.from('students').insert(payload).select().single();
       if (!error && data) {
         await logAudit('CREATE', 'students', data.id, { name: form.name });
-        // Criar bio_form vazio
         await supabase.from('bio_forms').insert({ student_id: data.id, sections_json: {} });
+        const cls = classrooms.find((c: any) => c.id === form.classroom_id);
+        const school = schools.find((s: any) => s.id === form.school_id);
+        const newStudent: Student = {
+          ...(data as any),
+          classrooms: cls
+            ? { year_grade: cls.year_grade, label: cls.label, schools: { name: school?.name ?? '' } }
+            : undefined,
+        };
+        setStudents((prev) =>
+          [...prev, newStudent].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+        );
       }
     }
 
     setDialogOpen(false);
-    fetchAll();
   }
 
   async function handleDelete(s: Student) {
@@ -156,7 +182,7 @@ export default function AlunosPage() {
     const { error } = await supabase.from('students').delete().eq('id', s.id);
     if (!error) {
       await logAudit('DELETE', 'students', s.id, { name: s.name });
-      fetchAll();
+      setStudents((prev) => prev.filter((st) => st.id !== s.id));
     }
   }
 

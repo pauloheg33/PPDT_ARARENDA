@@ -155,16 +155,10 @@ export default function ImportarPage() {
     setImporting(true);
     const res: ImportResult = { inserted: 0, updated: 0, errors: [] };
 
-    for (let i = 0; i < parsedData.length; i++) {
-      const row = parsedData[i];
-      if (!row.nome) {
-        res.errors.push(`Linha ${i + 2}: Nome vazio`);
-        continue;
-      }
-
+    // 1. Pre-process: parse all birthdates upfront (no I/O)
+    const processed = parsedData.map((row, i) => {
       let birthdate: string | null = null;
       if (row.nascimento) {
-        // Tentar formatos comuns
         const parts = row.nascimento.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
         if (parts) {
           birthdate = `${parts[3]}-${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
@@ -172,62 +166,82 @@ export default function ImportarPage() {
           birthdate = row.nascimento;
         }
       }
+      return { row, birthdate, lineNum: i + 2 };
+    });
 
-      // Verificar duplicidade
-      if (row.matricula && birthdate) {
-        const { data: existing } = await supabase
-          .from('students')
-          .select('id')
-          .eq('enrollment_code', row.matricula)
-          .eq('birthdate', birthdate)
-          .maybeSingle();
-
-        if (existing) {
-          // Atualizar
-          const { error } = await supabase
-            .from('students')
-            .update({
-              name: row.nome,
-              school_id: selectedSchool,
-              classroom_id: selectedClassroom,
-              responsible_name: row.responsavel || null,
-              responsible_phone: row.telefone || null,
-            })
-            .eq('id', existing.id);
-
-          if (error) {
-            res.errors.push(`Linha ${i + 2}: Erro ao atualizar ${row.nome}: ${error.message}`);
-          } else {
-            res.updated++;
-          }
-          continue;
-        }
-      }
-
-      // Inserir novo
-      const { data: newStudent, error } = await supabase
+    // 2. Pre-fetch all potentially existing students in ONE query
+    const matriculas = Array.from(new Set(
+      processed.filter((p) => p.row.matricula).map((p) => p.row.matricula as string),
+    ));
+    const existingMap = new Map<string, string>(); // `${code}|${birthdate}` → id
+    if (matriculas.length > 0) {
+      const { data: existing } = await supabase
         .from('students')
-        .insert({
-          name: row.nome,
-          enrollment_code: row.matricula || null,
-          birthdate,
-          responsible_name: row.responsavel || null,
-          responsible_phone: row.telefone || null,
-          school_id: selectedSchool,
-          classroom_id: selectedClassroom,
-        })
-        .select()
-        .single();
+        .select('id, enrollment_code, birthdate')
+        .in('enrollment_code', matriculas);
+      for (const s of existing ?? []) {
+        existingMap.set(`${s.enrollment_code}|${s.birthdate}`, s.id);
+      }
+    }
 
-      if (error) {
-        res.errors.push(`Linha ${i + 2}: Erro ao inserir ${row.nome}: ${error.message}`);
+    // 3. Classify rows into inserts and updates
+    const toInsert: any[] = [];
+    const toUpdate: { id: string; payload: any; name: string; lineNum: number }[] = [];
+
+    for (const { row, birthdate, lineNum } of processed) {
+      if (!row.nome) {
+        res.errors.push(`Linha ${lineNum}: Nome vazio`);
+        continue;
+      }
+      const payload = {
+        name: row.nome,
+        school_id: selectedSchool,
+        classroom_id: selectedClassroom,
+        responsible_name: row.responsavel || null,
+        responsible_phone: row.telefone || null,
+      };
+      const existingId =
+        row.matricula && birthdate ? existingMap.get(`${row.matricula}|${birthdate}`) : undefined;
+
+      if (existingId) {
+        toUpdate.push({ id: existingId, payload, name: row.nome, lineNum });
       } else {
-        res.inserted++;
-        // Criar bio_form vazio
-        if (newStudent) {
-          await supabase.from('bio_forms').insert({ student_id: newStudent.id, sections_json: {} });
+        toInsert.push({ ...payload, enrollment_code: row.matricula || null, birthdate });
+      }
+    }
+
+    // 4. Batch insert all new students in one query
+    if (toInsert.length > 0) {
+      const { data: inserted, error } = await supabase
+        .from('students')
+        .insert(toInsert)
+        .select('id');
+      if (error) {
+        res.errors.push(`Erro ao inserir alunos: ${error.message}`);
+      } else {
+        res.inserted = inserted?.length ?? 0;
+        if (inserted && inserted.length > 0) {
+          await supabase
+            .from('bio_forms')
+            .insert(inserted.map((s: any) => ({ student_id: s.id, sections_json: {} })));
         }
       }
+    }
+
+    // 5. Run all updates in parallel
+    if (toUpdate.length > 0) {
+      const results = await Promise.all(
+        toUpdate.map(({ id, payload }) =>
+          supabase.from('students').update(payload).eq('id', id),
+        ),
+      );
+      results.forEach((r, i) => {
+        if (r.error) {
+          res.errors.push(`Linha ${toUpdate[i].lineNum}: Erro ao atualizar ${toUpdate[i].name}: ${r.error.message}`);
+        } else {
+          res.updated++;
+        }
+      });
     }
 
     await logAudit('IMPORT', 'students', selectedClassroom, {

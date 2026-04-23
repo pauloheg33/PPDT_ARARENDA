@@ -75,6 +75,15 @@ export default function EscolasPage() {
         .eq('id', editingSchool.id);
       if (!error) {
         await logAudit('UPDATE', 'schools', editingSchool.id, { name: form.name });
+        setSchools((prev) =>
+          prev
+            .map((s) =>
+              s.id === editingSchool.id
+                ? { ...s, name: form.name, inep: form.inep || null }
+                : s
+            )
+            .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+        );
       }
     } else {
       const { data, error } = await supabase
@@ -84,11 +93,13 @@ export default function EscolasPage() {
         .single();
       if (!error && data) {
         await logAudit('CREATE', 'schools', data.id, { name: form.name });
+        setSchools((prev) =>
+          [...prev, data as School].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+        );
       }
     }
 
     setDialogOpen(false);
-    fetchSchools();
   }
 
   async function handleDelete(school: School) {
@@ -97,7 +108,7 @@ export default function EscolasPage() {
     const { error } = await supabase.from('schools').delete().eq('id', school.id);
     if (!error) {
       await logAudit('DELETE', 'schools', school.id, { name: school.name });
-      fetchSchools();
+      setSchools((prev) => prev.filter((s) => s.id !== school.id));
     }
   }
 

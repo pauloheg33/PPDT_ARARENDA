@@ -140,10 +140,7 @@ export default function InstrumentaisPage() {
 
   useEffect(() => {
     if (!classroomId) return;
-    fetchUploads();
-    fetchStudents();
-    fetchModelos();
-    fetchClassroom();
+    Promise.all([fetchUploads(), fetchStudents(), fetchModelos(), fetchClassroom()]);
   }, [classroomId]);
 
   async function fetchUploads() {

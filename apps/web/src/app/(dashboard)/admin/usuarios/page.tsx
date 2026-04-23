@@ -127,9 +127,20 @@ export default function UsuariosPage() {
       full_name: form.full_name,
     });
 
+    setProfiles((prev) =>
+      [
+        ...prev,
+        {
+          user_id: authData.user!.id,
+          full_name: form.full_name,
+          role: form.role,
+          school_id: form.school_id || null,
+          classroom_id: form.classroom_id || null,
+        },
+      ].sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR'))
+    );
     setDialogOpen(false);
     setForm({ email: '', password: '', full_name: '', role: 'DT', school_id: '', classroom_id: '' });
-    fetchAll();
   }
 
   async function handleDelete(p: Profile) {
@@ -151,7 +162,7 @@ export default function UsuariosPage() {
       }
 
       await logAudit('DELETE', 'profiles', p.user_id, { full_name: p.full_name });
-      fetchAll();
+      setProfiles((prev) => prev.filter((pr) => pr.user_id !== p.user_id));
     } catch (error: any) {
       console.error('Erro ao deletar usuário:', error);
       alert(`Erro ao deletar usuário: ${error.message}`);
