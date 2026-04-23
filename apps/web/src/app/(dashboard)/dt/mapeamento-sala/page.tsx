@@ -179,62 +179,99 @@ function MapeamentoSalaPageContent() {
 
   async function exportPDF() {
     const doc = new jsPDF('l', 'mm', 'a4');
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.getWidth();   // 297mm
+    const pageHeight = doc.internal.pageSize.getHeight(); // 210mm
 
-    doc.setFontSize(16);
-    doc.text('Mapeamento de Sala', pageWidth / 2, 12, { align: 'center' });
-    doc.setFontSize(10);
-    doc.text(`${classroom?.schools?.name ?? ''} — ${classroom?.year_grade} ${classroom?.label} (${classroom?.shift})`, pageWidth / 2, 18, { align: 'center' });
+    const margin = 12;
+    const headerH = 30;
 
-    doc.setFillColor(200, 200, 200);
-    doc.rect(pageWidth / 2 - 40, 22, 80, 6, 'F');
+    // Cabeçalho
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Mapeamento de Sala', pageWidth / 2, 10, { align: 'center' });
     doc.setFontSize(8);
-    doc.text('QUADRO', pageWidth / 2, 26, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `${classroom?.schools?.name ?? ''} — ${classroom?.year_grade} ${classroom?.label} (${classroom?.shift})`,
+      pageWidth / 2, 16, { align: 'center' },
+    );
 
-    const gridStartY = 32;
-    const cellW = Math.min(40, (pageWidth - 30) / layout.cols);
-    const cellH = Math.min(35, (pageHeight - gridStartY - 15) / layout.rows);
-    const gridStartX = (pageWidth - layout.cols * cellW) / 2;
+    // Barra do quadro
+    doc.setFillColor(220, 220, 220);
+    doc.rect(pageWidth / 2 - 38, 19, 76, 7, 'F');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('QUADRO / LOUSA', pageWidth / 2, 24, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+
+    // Dimensões do grid — preenchendo toda a área disponível
+    const gridW = pageWidth - margin * 2;
+    const gridH = pageHeight - headerH - margin;
+    const cellW = gridW / layout.cols;
+    const cellH = gridH / layout.rows;
+
+    // Foto quadrada: menor dimensão da célula menos padding para o nome
+    const namePad = 7;   // espaço reservado para o nome abaixo da foto
+    const pad = 2;       // padding interno da célula
+    const photoSize = Math.min(cellW - pad * 2, cellH - namePad - pad * 2);
 
     for (let r = 0; r < layout.rows; r++) {
       for (let c = 0; c < layout.cols; c++) {
-        const x = gridStartX + c * cellW;
-        const y = gridStartY + r * cellH;
+        const x = margin + c * cellW;
+        const y = headerH + r * cellH;
         const studentId = layout.seats[r]?.[c];
         const student = getStudentById(studentId);
 
-        // Desenhar borda da célula
-        doc.setDrawColor(180);
+        // Borda da célula
+        doc.setDrawColor(210);
+        doc.setLineWidth(0.2);
         doc.rect(x, y, cellW, cellH);
 
         if (student) {
-          // Desenhar foto se existir
+          const photoX = x + (cellW - photoSize) / 2;
+          const photoY = y + pad;
+
           if (student.photoUrl) {
             try {
-              const imgData = await loadImage(student.photoUrl);
-              const photoW = cellW * 0.7;
-              const photoH = cellH * 0.7;
-              const photoX = x + (cellW - photoW) / 2;
-              const photoY = y + 2;
-              doc.addImage(imgData, 'JPEG', photoX, photoY, photoW, photoH);
-            } catch (e) {
-              console.error('Erro ao carregar foto para PDF:', e);
+              // Carrega como PNG com recorte circular (fundo branco nas bordas)
+              const imgData = await loadImageCircular(student.photoUrl, photoSize);
+              doc.addImage(imgData, 'PNG', photoX, photoY, photoSize, photoSize);
+            } catch {
+              // Placeholder cinza quando falha
+              doc.setFillColor(235, 235, 235);
+              doc.rect(photoX, photoY, photoSize, photoSize, 'F');
             }
+          } else {
+            doc.setFillColor(235, 235, 235);
+            doc.rect(photoX, photoY, photoSize, photoSize, 'F');
           }
 
-          // Desenhar nome
-          doc.setFontSize(5);
-          const name = student.name.length > 16 ? student.name.substring(0, 16) + '...' : student.name;
-          doc.text(name, x + cellW / 2, y + cellH - 4, { align: 'center' });
+          // Nome abaixo da foto
+          doc.setFontSize(Math.max(4, Math.min(6, cellW / 8)));
+          doc.setFont('helvetica', 'bold');
+          const parts = student.name.trim().split(' ');
+          const displayName =
+            parts.length >= 2
+              ? `${parts[0]} ${parts[parts.length - 1]}`
+              : parts[0];
+          doc.text(
+            displayName.length > 14 ? displayName.substring(0, 13) + '.' : displayName,
+            x + cellW / 2,
+            y + cellH - 1.5,
+            { align: 'center' },
+          );
+          doc.setFont('helvetica', 'normal');
 
-          // Desenhar indicadores de líder/vice-líder
-          if (student.is_leader) {
-            doc.setFontSize(4);
-            doc.text('L', x + cellW - 2, y + 2);
-          } else if (student.is_vice_leader) {
-            doc.setFontSize(4);
-            doc.text('V', x + cellW - 2, y + 2);
+          // Badge de líder / vice-líder
+          if (student.is_leader || student.is_vice_leader) {
+            const badgeW = 8;
+            const badgeH = 3;
+            doc.setFillColor(student.is_leader ? 34 : 100, student.is_leader ? 197 : 116, student.is_leader ? 94 : 139);
+            doc.rect(x + cellW - badgeW - 0.5, y + 0.5, badgeW, badgeH, 'F');
+            doc.setFontSize(3);
+            doc.setTextColor(255, 255, 255);
+            doc.text(student.is_leader ? 'LÍDER' : 'VICE', x + cellW - badgeW / 2 - 0.5, y + 2.3, { align: 'center' });
+            doc.setTextColor(0, 0, 0);
           }
         }
       }
@@ -243,16 +280,35 @@ function MapeamentoSalaPageContent() {
     doc.save(`mapeamento_sala_${classroom?.year_grade}_${classroom?.label}.pdf`);
   }
 
-  function loadImage(url: string): Promise<string> {
+  // Carrega imagem recortada em círculo — fundo branco nas bordas, igual à tela
+  function loadImageCircular(url: string, sizePx = 256): Promise<string> {
+    const px = sizePx * 4; // resolução interna alta para qualidade
     return new Promise((resolve, reject) => {
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        canvas.getContext('2d')?.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/jpeg'));
+        canvas.width = px;
+        canvas.height = px;
+        const ctx = canvas.getContext('2d')!;
+
+        // Fundo branco (canto da célula no PDF é branco)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, px, px);
+
+        // Clip circular
+        ctx.beginPath();
+        ctx.arc(px / 2, px / 2, px / 2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+
+        // Centralizar e cobrir (estilo object-cover) sem deformação
+        const scale = Math.max(px / img.width, px / img.height);
+        const drawW = img.width * scale;
+        const drawH = img.height * scale;
+        ctx.drawImage(img, (px - drawW) / 2, (px - drawH) / 2, drawW, drawH);
+
+        resolve(canvas.toDataURL('image/png'));
       };
       img.onerror = reject;
       img.src = url;
