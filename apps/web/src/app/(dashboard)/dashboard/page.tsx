@@ -109,21 +109,27 @@ export default function DashboardPage() {
         });
 
         if (role === 'DT' && classroomId) {
-          const [studentsListRes, photosRes] = await Promise.all([
-            supabase
-              .from('students')
-              .select('id, name, enrollment_code, bio_forms(completed)')
-              .eq('classroom_id', classroomId)
-              .eq('status', 'Ativo')
-              .order('name'),
-            supabase
-              .from('student_photos')
-              .select('student_id')
-              .eq('classroom_id', classroomId),
-          ]);
+          // 1. Buscar alunos da turma com status das fichas
+          const studentsListRes = await supabase
+            .from('students')
+            .select('id, name, enrollment_code, bio_forms(completed)')
+            .eq('classroom_id', classroomId)
+            .eq('status', 'Ativo')
+            .order('name');
 
           const allStudents = studentsListRes.data ?? [];
-          const withPhoto = new Set((photosRes.data ?? []).map((p: any) => p.student_id));
+          const studentIds = allStudents.map((s: any) => s.id);
+
+          // 2. Buscar fotos pelos IDs dos alunos (student_photos não tem classroom_id)
+          let withPhoto = new Set<string>();
+          if (studentIds.length > 0) {
+            const photosRes = await supabase
+              .from('student_photos')
+              .select('student_id')
+              .in('student_id', studentIds);
+            withPhoto = new Set((photosRes.data ?? []).map((p: any) => p.student_id));
+          }
+
           setDtPendingBios(allStudents.filter((s: any) => !s.bio_forms?.[0]?.completed));
           setDtPendingPhotos(allStudents.filter((s: any) => !withPhoto.has(s.id)));
         }
