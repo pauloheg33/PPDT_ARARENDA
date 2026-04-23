@@ -70,19 +70,19 @@ function MapeamentoSalaPageContent() {
     }
 
     const photoMap = new Map<string, string>();
-    
-    // Gerar URLs assinadas para cada foto
-    for (const photo of photosRes.data ?? []) {
-      try {
-        const { data } = await supabase.storage
-          .from('student-photos')
-          .createSignedUrl(photo.storage_path, 3600); // URL válida por 1 hora
-        
-        if (data?.signedUrl) {
-          photoMap.set(photo.student_id, data.signedUrl);
-        }
-      } catch (e) {
-        console.error('Erro ao gerar URL assinada para mapeamento:', e);
+    const photos = photosRes.data ?? [];
+    if (photos.length > 0) {
+      const results = await Promise.all(
+        photos.map((photo: any) =>
+          supabase.storage
+            .from('student-photos')
+            .createSignedUrl(photo.storage_path, 3600)
+            .then(({ data }) => ({ studentId: photo.student_id, signedUrl: data?.signedUrl ?? null }))
+            .catch(() => ({ studentId: photo.student_id, signedUrl: null as string | null }))
+        )
+      );
+      for (const { studentId, signedUrl } of results) {
+        if (signedUrl) photoMap.set(studentId, signedUrl);
       }
     }
 

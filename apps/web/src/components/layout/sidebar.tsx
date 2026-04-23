@@ -74,12 +74,6 @@ const navItems: NavItem[] = [
     icon: <Users className="h-4 w-4" />,
     roles: ['ADMIN_SME'],
   },
-  {
-    label: 'Instrumentais',
-    href: '/admin/instrumentais',
-    icon: <FolderOpen className="h-4 w-4" />,
-    roles: ['ADMIN_SME', 'COORD_PPDT', 'GESTOR_ESCOLA'],
-  },
 ];
 
 export function Sidebar() {

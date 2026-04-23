@@ -151,6 +151,7 @@ export default function InstrumentaisPage() {
     const { data } = await supabase
       .from('instrumental_uploads')
       .select('*, student:students(name)')
+      .eq('classroom_id', classroomId)
       .order('created_at', { ascending: false });
     setUploads((data as Upload[]) ?? []);
     setLoadingUploads(false);
@@ -315,9 +316,11 @@ export default function InstrumentaisPage() {
 
   function svgUrlToBase64(url: string): Promise<string | null> {
     return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), 5000);
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
+        clearTimeout(timer);
         const canvas = document.createElement('canvas');
         canvas.width = img.naturalWidth || 256;
         canvas.height = img.naturalHeight || 256;
@@ -326,7 +329,7 @@ export default function InstrumentaisPage() {
         ctx.drawImage(img, 0, 0);
         resolve(canvas.toDataURL('image/png'));
       };
-      img.onerror = () => resolve(null);
+      img.onerror = () => { clearTimeout(timer); resolve(null); };
       img.src = url;
     });
   }
