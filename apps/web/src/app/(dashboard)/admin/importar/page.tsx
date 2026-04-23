@@ -210,21 +210,26 @@ export default function ImportarPage() {
       }
     }
 
-    // 4. Batch insert all new students in one query
+    // 4. Insert new students in parallel — individual so each row fails independently
     if (toInsert.length > 0) {
-      const { data: inserted, error } = await supabase
-        .from('students')
-        .insert(toInsert)
-        .select('id');
-      if (error) {
-        res.errors.push(`Erro ao inserir alunos: ${error.message}`);
-      } else {
-        res.inserted = inserted?.length ?? 0;
-        if (inserted && inserted.length > 0) {
-          await supabase
-            .from('bio_forms')
-            .insert(inserted.map((s: any) => ({ student_id: s.id, sections_json: {} })));
+      const insertResults = await Promise.all(
+        toInsert.map((item: any) =>
+          supabase.from('students').insert(item).select('id').single(),
+        ),
+      );
+      const insertedIds: string[] = [];
+      insertResults.forEach((r, idx) => {
+        if (r.error) {
+          res.errors.push(`Erro ao inserir "${toInsert[idx].name}": ${r.error.message}`);
+        } else if (r.data) {
+          insertedIds.push((r.data as any).id);
+          res.inserted++;
         }
+      });
+      if (insertedIds.length > 0) {
+        await supabase
+          .from('bio_forms')
+          .insert(insertedIds.map((id) => ({ student_id: id, sections_json: {} })));
       }
     }
 

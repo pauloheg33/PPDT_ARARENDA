@@ -118,27 +118,28 @@ export default function UsuariosPage() {
       })
       .eq('user_id', authData.user.id);
 
-    if (updateError) {
-      alert(`Usuário criado, mas erro ao definir papel: ${updateError.message}`);
-    }
-
     await logAudit('CREATE', 'profiles', authData.user.id, {
       role: form.role,
       full_name: form.full_name,
     });
 
-    setProfiles((prev) =>
-      [
-        ...prev,
-        {
-          user_id: authData.user!.id,
-          full_name: form.full_name,
-          role: form.role,
-          school_id: form.school_id || null,
-          classroom_id: form.classroom_id || null,
-        },
-      ].sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR'))
-    );
+    if (updateError) {
+      alert(`Usuário criado, mas erro ao definir papel: ${updateError.message}`);
+      fetchAll(); // busca estado real do banco para não exibir role incorreto
+    } else {
+      setProfiles((prev) =>
+        [
+          ...prev,
+          {
+            user_id: authData.user!.id,
+            full_name: form.full_name,
+            role: form.role,
+            school_id: form.school_id || null,
+            classroom_id: form.classroom_id || null,
+          },
+        ].sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR'))
+      );
+    }
     setDialogOpen(false);
     setForm({ email: '', password: '', full_name: '', role: 'DT', school_id: '', classroom_id: '' });
   }
