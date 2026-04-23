@@ -178,141 +178,149 @@ function MapeamentoSalaPageContent() {
   }
 
   async function exportPDF() {
-    const doc = new jsPDF('l', 'mm', 'a4');
-    const pageWidth = doc.internal.pageSize.getWidth();   // 297mm
-    const pageHeight = doc.internal.pageSize.getHeight(); // 210mm
+    // Desenha tudo num canvas HTML (suporte nativo a círculos) e embute no PDF
+    const S = 4; // px por mm (96 dpi ≈ 3.78; usando 4 para qualidade)
+    const PW = 297 * S; // canvas largura (A4 landscape)
+    const PH = 210 * S; // canvas altura
 
-    const margin = 12;
-    const headerH = 30;
+    const canvas = document.createElement('canvas');
+    canvas.width = PW;
+    canvas.height = PH;
+    const ctx = canvas.getContext('2d')!;
 
-    // Cabeçalho
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Mapeamento de Sala', pageWidth / 2, 10, { align: 'center' });
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(
+    // Fundo branco
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, PW, PH);
+
+    const mg = 12 * S;
+    const hdrH = 30 * S;
+
+    // ── Cabeçalho ──
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#111827';
+    ctx.font = `bold ${13 * S}px sans-serif`;
+    ctx.fillText('Mapeamento de Sala', PW / 2, 11 * S);
+
+    ctx.font = `${8 * S}px sans-serif`;
+    ctx.fillStyle = '#374151';
+    ctx.fillText(
       `${classroom?.schools?.name ?? ''} — ${classroom?.year_grade} ${classroom?.label} (${classroom?.shift})`,
-      pageWidth / 2, 16, { align: 'center' },
+      PW / 2, 18 * S,
     );
 
-    // Barra do quadro
-    doc.setFillColor(220, 220, 220);
-    doc.rect(pageWidth / 2 - 38, 19, 76, 7, 'F');
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'bold');
-    doc.text('QUADRO / LOUSA', pageWidth / 2, 24, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
+    // Barra QUADRO
+    ctx.fillStyle = '#e5e7eb';
+    ctx.fillRect(PW / 2 - 38 * S, 21 * S, 76 * S, 7 * S);
+    ctx.fillStyle = '#374151';
+    ctx.font = `bold ${7 * S}px sans-serif`;
+    ctx.fillText('QUADRO / LOUSA', PW / 2, 26 * S);
 
-    // Dimensões do grid — preenchendo toda a área disponível
-    const gridW = pageWidth - margin * 2;
-    const gridH = pageHeight - headerH - margin;
+    // ── Carregar todas as fotos em paralelo ──
+    const imgMap = new Map<string, HTMLImageElement>();
+    await Promise.all(
+      students
+        .filter((s) => s.photoUrl)
+        .map(
+          (s) =>
+            new Promise<void>((resolve) => {
+              const img = new window.Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => { imgMap.set(s.id, img); resolve(); };
+              img.onerror = () => resolve();
+              img.src = s.photoUrl!;
+            }),
+        ),
+    );
+
+    // ── Grid ──
+    const gridW = PW - mg * 2;
+    const gridH = PH - hdrH - mg;
     const cellW = gridW / layout.cols;
     const cellH = gridH / layout.rows;
-
-    // Foto quadrada: menor dimensão da célula menos padding para o nome
-    const namePad = 7;   // espaço reservado para o nome abaixo da foto
-    const pad = 2;       // padding interno da célula
-    const photoSize = Math.min(cellW - pad * 2, cellH - namePad - pad * 2);
+    const namePad = 8 * S;
+    const pad = 2 * S;
+    const photoR = Math.min(cellW - pad * 2, cellH - namePad - pad * 2) / 2; // raio
 
     for (let r = 0; r < layout.rows; r++) {
       for (let c = 0; c < layout.cols; c++) {
-        const x = margin + c * cellW;
-        const y = headerH + r * cellH;
-        const studentId = layout.seats[r]?.[c];
-        const student = getStudentById(studentId);
+        const x = mg + c * cellW;
+        const y = hdrH + r * cellH;
+        const student = getStudentById(layout.seats[r]?.[c]);
 
         // Borda da célula
-        doc.setDrawColor(210);
-        doc.setLineWidth(0.2);
-        doc.rect(x, y, cellW, cellH);
+        ctx.strokeStyle = '#d1d5db';
+        ctx.lineWidth = 0.5 * S;
+        ctx.strokeRect(x, y, cellW, cellH);
 
-        if (student) {
-          const photoX = x + (cellW - photoSize) / 2;
-          const photoY = y + pad;
+        if (!student) continue;
 
-          if (student.photoUrl) {
-            try {
-              // Carrega como PNG com recorte circular (fundo branco nas bordas)
-              const imgData = await loadImageCircular(student.photoUrl, photoSize);
-              doc.addImage(imgData, 'PNG', photoX, photoY, photoSize, photoSize);
-            } catch {
-              // Placeholder cinza quando falha
-              doc.setFillColor(235, 235, 235);
-              doc.rect(photoX, photoY, photoSize, photoSize, 'F');
-            }
-          } else {
-            doc.setFillColor(235, 235, 235);
-            doc.rect(photoX, photoY, photoSize, photoSize, 'F');
-          }
+        const cx = x + cellW / 2;         // centro X da célula
+        const cy = y + pad + photoR;      // centro Y da foto
 
-          // Nome abaixo da foto
-          doc.setFontSize(Math.max(4, Math.min(6, cellW / 8)));
-          doc.setFont('helvetica', 'bold');
-          const parts = student.name.trim().split(' ');
-          const displayName =
-            parts.length >= 2
-              ? `${parts[0]} ${parts[parts.length - 1]}`
-              : parts[0];
-          doc.text(
-            displayName.length > 14 ? displayName.substring(0, 13) + '.' : displayName,
-            x + cellW / 2,
-            y + cellH - 1.5,
-            { align: 'center' },
-          );
-          doc.setFont('helvetica', 'normal');
+        // ── Foto circular ──
+        const img = imgMap.get(student.id);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, photoR, 0, Math.PI * 2);
+        ctx.closePath();
 
-          // Badge de líder / vice-líder
-          if (student.is_leader || student.is_vice_leader) {
-            const badgeW = 8;
-            const badgeH = 3;
-            doc.setFillColor(student.is_leader ? 34 : 100, student.is_leader ? 197 : 116, student.is_leader ? 94 : 139);
-            doc.rect(x + cellW - badgeW - 0.5, y + 0.5, badgeW, badgeH, 'F');
-            doc.setFontSize(3);
-            doc.setTextColor(255, 255, 255);
-            doc.text(student.is_leader ? 'LÍDER' : 'VICE', x + cellW - badgeW / 2 - 0.5, y + 2.3, { align: 'center' });
-            doc.setTextColor(0, 0, 0);
-          }
+        if (img) {
+          ctx.clip();
+          // object-cover: escala para cobrir o círculo sem deformar
+          const sc = Math.max((photoR * 2) / img.width, (photoR * 2) / img.height);
+          const dw = img.width * sc;
+          const dh = img.height * sc;
+          ctx.drawImage(img, cx - dw / 2, cy - dh / 2, dw, dh);
+        } else {
+          // Placeholder cinza
+          ctx.fillStyle = '#e5e7eb';
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Borda do círculo
+        ctx.strokeStyle = '#d1d5db';
+        ctx.lineWidth = 0.8 * S;
+        ctx.beginPath();
+        ctx.arc(cx, cy, photoR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // ── Nome ──
+        const parts = student.name.trim().split(' ');
+        const displayName =
+          parts.length >= 2 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0];
+        const fontSize = Math.max(5 * S, Math.min(7 * S, cellW / 9));
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = '#111827';
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          displayName.length > 16 ? displayName.substring(0, 15) + '.' : displayName,
+          cx,
+          y + cellH - 2 * S,
+        );
+
+        // ── Badge líder / vice ──
+        if (student.is_leader || student.is_vice_leader) {
+          const bw = 9 * S, bh = 3.5 * S, br = 1.5 * S;
+          const bx = x + cellW - bw - 1 * S;
+          const by = y + 1 * S;
+          ctx.fillStyle = student.is_leader ? '#16a34a' : '#6b7280';
+          ctx.beginPath();
+          ctx.roundRect(bx, by, bw, bh, br);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${3.5 * S}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText(student.is_leader ? 'LÍDER' : 'VICE', bx + bw / 2, by + bh * 0.72);
         }
       }
     }
 
+    // ── Embute canvas como imagem no PDF ──
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const doc = new jsPDF('l', 'mm', 'a4');
+    doc.addImage(imgData, 'JPEG', 0, 0, 297, 210);
     doc.save(`mapeamento_sala_${classroom?.year_grade}_${classroom?.label}.pdf`);
-  }
-
-  // Carrega imagem recortada em círculo — fundo branco nas bordas, igual à tela
-  function loadImageCircular(url: string, sizePx = 256): Promise<string> {
-    const px = sizePx * 4; // resolução interna alta para qualidade
-    return new Promise((resolve, reject) => {
-      const img = new window.Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = px;
-        canvas.height = px;
-        const ctx = canvas.getContext('2d')!;
-
-        // Fundo branco (canto da célula no PDF é branco)
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, px, px);
-
-        // Clip circular
-        ctx.beginPath();
-        ctx.arc(px / 2, px / 2, px / 2, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.clip();
-
-        // Centralizar e cobrir (estilo object-cover) sem deformação
-        const scale = Math.max(px / img.width, px / img.height);
-        const drawW = img.width * scale;
-        const drawH = img.height * scale;
-        ctx.drawImage(img, (px - drawW) / 2, (px - drawH) / 2, drawW, drawH);
-
-        resolve(canvas.toDataURL('image/png'));
-      };
-      img.onerror = reject;
-      img.src = url;
-    });
   }
 
   if (!turmaId) {
