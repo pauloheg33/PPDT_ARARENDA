@@ -232,6 +232,123 @@ export interface Database {
           metadata?: Json;
         };
       };
+      instrumental_uploads: {
+        Row: {
+          id: string;
+          uploaded_by: string | null;
+          school_id: string;
+          classroom_id: string;
+          student_id: string | null;
+          type: string;
+          storage_path: string;
+          original_filename: string | null;
+          reference_date: string;
+          observations: string | null;
+          created_at: string;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          review_notes: string | null;
+        };
+        Insert: {
+          id?: string;
+          uploaded_by?: string | null;
+          school_id: string;
+          classroom_id: string;
+          student_id?: string | null;
+          type: string;
+          storage_path: string;
+          original_filename?: string | null;
+          reference_date?: string;
+          observations?: string | null;
+          created_at?: string;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          review_notes?: string | null;
+        };
+        Update: {
+          id?: string;
+          uploaded_by?: string | null;
+          school_id?: string;
+          classroom_id?: string;
+          student_id?: string | null;
+          type?: string;
+          storage_path?: string;
+          original_filename?: string | null;
+          reference_date?: string;
+          observations?: string | null;
+          created_at?: string;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          review_notes?: string | null;
+        };
+      };
+      biblioteca_modelos: {
+        Row: {
+          id: string;
+          category: string;
+          name: string;
+          description: string | null;
+          external_url: string;
+          file_type: string | null;
+          active: boolean | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          category: string;
+          name: string;
+          description?: string | null;
+          external_url: string;
+          file_type?: string | null;
+          active?: boolean | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          category?: string;
+          name?: string;
+          description?: string | null;
+          external_url?: string;
+          file_type?: string | null;
+          active?: boolean | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      instrumental_downloads_log: {
+        Row: {
+          id: string;
+          admin_user_id: string;
+          upload_id: string;
+          action: string;
+          ip_address: string | null;
+          user_agent: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          admin_user_id: string;
+          upload_id: string;
+          action: string;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          admin_user_id?: string;
+          upload_id?: string;
+          action?: string;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          created_at?: string | null;
+        };
+      };
     };
     Views: {
       v_classroom_stats: {

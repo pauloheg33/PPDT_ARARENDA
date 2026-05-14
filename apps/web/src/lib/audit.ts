@@ -4,6 +4,8 @@ export type AuditAction =
   | 'CREATE'
   | 'UPDATE'
   | 'DELETE'
+  | 'VIEW'
+  | 'DOWNLOAD'
   | 'LOCK'
   | 'UNLOCK'
   | 'LOGIN'

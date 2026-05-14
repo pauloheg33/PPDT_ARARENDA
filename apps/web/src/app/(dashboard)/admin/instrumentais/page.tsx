@@ -44,7 +44,6 @@ import {
   ExternalLink,
   ToggleLeft,
   ToggleRight,
-  Check,
 } from 'lucide-react';
 
 type TipoInstrumental =
@@ -113,7 +112,7 @@ const EMPTY_MODELO: Omit<Modelo, 'id' | 'active'> = {
 };
 
 export default function AdminInstrumentaisPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // ---- Monitoramento ----
   const [uploads, setUploads] = useState<UploadRow[]>([]);
@@ -143,6 +142,9 @@ export default function AdminInstrumentaisPage() {
     fetchSchools();
   }, []);
 
+  const isAdminSme = profile?.role === 'ADMIN_SME';
+  const canManageUploads = isAdminSme;
+
   async function fetchUploads() {
     setLoadingUploads(true);
     const [uploadsRes, profilesRes] = await Promise.all([
@@ -159,7 +161,7 @@ export default function AdminInstrumentaisPage() {
 
   async function handleMarkReviewed(upload: UploadRow) {
     if (!user?.id) return;
-    await supabase
+    const { error } = await supabase
       .from('instrumental_uploads')
       .update({
         reviewed_by: user.id,
@@ -167,6 +169,10 @@ export default function AdminInstrumentaisPage() {
         review_notes: reviewNotes,
       })
       .eq('id', upload.id);
+    if (error) {
+      alert(`Não foi possível marcar o arquivo como revisado: ${error.message}`);
+      return;
+    }
     await logAudit('UPDATE', 'instrumental_uploads', upload.id, { action: 'marked_reviewed', review_notes: reviewNotes });
     setReviewDialog(null);
     setReviewNotes('');
@@ -194,18 +200,71 @@ export default function AdminInstrumentaisPage() {
     return profiles.find((p) => p.user_id === userId)?.full_name ?? '—';
   }
 
+  function getReviewSummary(upload: UploadRow) {
+    if (!upload.reviewed_by) return null;
+
+    const reviewer = getUploaderName(upload.reviewed_by);
+    const reviewedAt = upload.reviewed_at
+      ? new Date(upload.reviewed_at).toLocaleString('pt-BR')
+      : null;
+
+    return {
+      reviewer,
+      reviewedAt,
+      notes: upload.review_notes?.trim() || null,
+    };
+  }
+
+  async function logInstrumentalFileAccess(upload: UploadRow, action: 'view' | 'download') {
+    if (!user?.id) return;
+
+    const metadata = {
+      type: upload.type,
+      file_name: upload.original_filename,
+      storage_path: upload.storage_path,
+      access_action: action,
+    };
+
+    const [auditResult, accessLogResult] = await Promise.all([
+      logAudit(action === 'view' ? 'VIEW' : 'DOWNLOAD', 'instrumental_uploads', upload.id, metadata),
+      supabase.from('instrumental_downloads_log').insert({
+        admin_user_id: user.id,
+        upload_id: upload.id,
+        action,
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+      }),
+    ]);
+
+    if (accessLogResult.error) {
+      console.error(`[Instrumentais Admin] Erro ao registrar ${action}:`, accessLogResult.error.message);
+    }
+
+    return auditResult;
+  }
+
   async function handleOpenPdf(upload: UploadRow) {
-    const { data } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from('instrumentais')
       .createSignedUrl(upload.storage_path, 120);
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    if (error || !data?.signedUrl) {
+      alert(`Não foi possível abrir o arquivo${error ? `: ${error.message}` : '.'}`);
+      return;
+    }
+
+    await logInstrumentalFileAccess(upload, 'view');
+    window.open(data.signedUrl, '_blank');
   }
 
   async function handleDownloadPdf(upload: UploadRow) {
-    const { data } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from('instrumentais')
       .createSignedUrl(upload.storage_path, 120);
-    if (!data?.signedUrl) return;
+    if (error || !data?.signedUrl) {
+      alert(`Não foi possível baixar o arquivo${error ? `: ${error.message}` : '.'}`);
+      return;
+    }
+
+    await logInstrumentalFileAccess(upload, 'download');
     const a = document.createElement('a');
     a.href = data.signedUrl;
     a.download = upload.original_filename ?? `instrumental-${upload.id}.pdf`;
@@ -214,8 +273,18 @@ export default function AdminInstrumentaisPage() {
 
   async function handleDeleteUpload(upload: UploadRow) {
     if (!confirm(`Excluir o arquivo "${upload.original_filename ?? upload.id}"?`)) return;
-    await supabase.storage.from('instrumentais').remove([upload.storage_path]);
-    await supabase.from('instrumental_uploads').delete().eq('id', upload.id);
+    const { error: storageError } = await supabase.storage.from('instrumentais').remove([upload.storage_path]);
+    if (storageError) {
+      alert(`Não foi possível remover o arquivo do storage: ${storageError.message}`);
+      return;
+    }
+
+    const { error: deleteError } = await supabase.from('instrumental_uploads').delete().eq('id', upload.id);
+    if (deleteError) {
+      alert(`Não foi possível excluir o registro: ${deleteError.message}`);
+      return;
+    }
+
     await logAudit('DELETE', 'instrumental_uploads', upload.id, { type: upload.type });
     fetchUploads();
   }
@@ -459,55 +528,68 @@ export default function AdminInstrumentaisPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredUploads.map((u) => (
-                      <TableRow key={u.id} className={u.reviewed_by ? 'opacity-75' : ''}>
-                        <TableCell className="font-medium">
-                          {getUploaderName(u.uploaded_by)}
-                        </TableCell>
-                        <TableCell>{u.school?.name ?? '—'}</TableCell>
-                        <TableCell>
-                          {u.classroom ? `${u.classroom.year_grade} ${u.classroom.label}` : '—'}
-                        </TableCell>
-                        <TableCell>{u.student?.name ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{TIPO_LABELS[u.type]}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(u.reference_date + 'T00:00:00').toLocaleDateString('pt-BR')}
-                        </TableCell>
-                        <TableCell>
-                          {u.reviewed_by ? (
-                            <Badge variant="default" className="bg-green-600">✓ Revisado</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-yellow-600">⏳ Pendente</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" title="Visualizar" onClick={() => handleOpenPdf(u)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" title="Baixar" onClick={() => handleDownloadPdf(u)}>
-                              <Download className="h-4 w-4" />
-                            </Button>
-                            {!u.reviewed_by && (
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                title="Marcar como revisado" 
-                                onClick={() => { setReviewDialog(u); setReviewNotes(''); }}
-                                className="text-blue-600"
-                              >
-                                <BarChart3 className="h-4 w-4" />
-                              </Button>
+                    {filteredUploads.map((u) => {
+                      const reviewSummary = getReviewSummary(u);
+
+                      return (
+                        <TableRow key={u.id} className={u.reviewed_by ? 'opacity-75' : ''}>
+                          <TableCell className="font-medium">
+                            {getUploaderName(u.uploaded_by)}
+                          </TableCell>
+                          <TableCell>{u.school?.name ?? '—'}</TableCell>
+                          <TableCell>
+                            {u.classroom ? `${u.classroom.year_grade} ${u.classroom.label}` : '—'}
+                          </TableCell>
+                          <TableCell>{u.student?.name ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{TIPO_LABELS[u.type]}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(u.reference_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                          </TableCell>
+                          <TableCell>
+                            {u.reviewed_by ? (
+                              <div className="space-y-1">
+                                <Badge variant="default" className="bg-green-600">✓ Revisado</Badge>
+                                <div className="text-xs text-muted-foreground">
+                                  <p>{reviewSummary?.reviewer ?? '—'}</p>
+                                  {reviewSummary?.reviewedAt && <p>{reviewSummary.reviewedAt}</p>}
+                                  {reviewSummary?.notes && <p>{reviewSummary.notes}</p>}
+                                </div>
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="text-yellow-600">⏳ Pendente</Badge>
                             )}
-                            <Button variant="ghost" size="icon" title="Excluir" onClick={() => handleDeleteUpload(u)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="icon" title="Visualizar" onClick={() => handleOpenPdf(u)}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" title="Baixar" onClick={() => handleDownloadPdf(u)}>
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              {canManageUploads && !u.reviewed_by && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Marcar como revisado"
+                                  onClick={() => { setReviewDialog(u); setReviewNotes(''); }}
+                                  className="text-blue-600"
+                                >
+                                  <BarChart3 className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {canManageUploads && (
+                                <Button variant="ghost" size="icon" title="Excluir" onClick={() => handleDeleteUpload(u)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
@@ -517,11 +599,13 @@ export default function AdminInstrumentaisPage() {
 
         {/* ====== ABA: BIBLIOTECA ====== */}
         <TabsContent value="biblioteca" className="space-y-4 pt-4">
-          <div className="flex justify-end">
-            <Button onClick={openNewModelo}>
-              <Plus className="mr-2 h-4 w-4" /> Adicionar Modelo
-            </Button>
-          </div>
+          {isAdminSme && (
+            <div className="flex justify-end">
+              <Button onClick={openNewModelo}>
+                <Plus className="mr-2 h-4 w-4" /> Adicionar Modelo
+              </Button>
+            </div>
+          )}
 
           <Card>
             <CardContent className="pt-6">
@@ -570,27 +654,31 @@ export default function AdminInstrumentaisPage() {
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" title="Editar" onClick={() => openEditModelo(m)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title={m.active ? 'Desativar' : 'Ativar'}
-                              onClick={() => handleToggleModelo(m)}
-                            >
-                              {m.active
-                                ? <ToggleRight className="h-4 w-4 text-primary" />
-                                : <ToggleLeft className="h-4 w-4 text-muted-foreground" />}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Excluir"
-                              onClick={() => handleDeleteModelo(m)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {isAdminSme && (
+                              <>
+                                <Button variant="ghost" size="icon" title="Editar" onClick={() => openEditModelo(m)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title={m.active ? 'Desativar' : 'Ativar'}
+                                  onClick={() => handleToggleModelo(m)}
+                                >
+                                  {m.active
+                                    ? <ToggleRight className="h-4 w-4 text-primary" />
+                                    : <ToggleLeft className="h-4 w-4 text-muted-foreground" />}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Excluir"
+                                  onClick={() => handleDeleteModelo(m)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
