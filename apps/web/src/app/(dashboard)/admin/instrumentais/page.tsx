@@ -44,6 +44,7 @@ import {
   ExternalLink,
   ToggleLeft,
   ToggleRight,
+  Check,
 } from 'lucide-react';
 
 type TipoInstrumental =
@@ -80,6 +81,9 @@ interface UploadRow {
   school_id: string;
   classroom_id: string;
   student_id: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
   school?: { name: string } | null;
   classroom?: { year_grade: string; label: string } | null;
   student?: { name: string } | null;
@@ -118,6 +122,12 @@ export default function AdminInstrumentaisPage() {
   const [loadingUploads, setLoadingUploads] = useState(true);
   const [filterSchool, setFilterSchool] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
+  const [filterUploader, setFilterUploader] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterReviewed, setFilterReviewed] = useState<'todos' | 'revisados' | 'pendentes'>('todos');
+  const [reviewDialog, setReviewDialog] = useState<UploadRow | null>(null);
+  const [reviewNotes, setReviewNotes] = useState('');
 
   // ---- Biblioteca ----
   const [modelos, setModelos] = useState<Modelo[]>([]);
@@ -145,6 +155,22 @@ export default function AdminInstrumentaisPage() {
     setUploads((uploadsRes.data as UploadRow[]) ?? []);
     setProfiles((profilesRes.data as Profile[]) ?? []);
     setLoadingUploads(false);
+  }
+
+  async function handleMarkReviewed(upload: UploadRow) {
+    if (!user?.id) return;
+    await supabase
+      .from('instrumental_uploads')
+      .update({
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString(),
+        review_notes: reviewNotes,
+      })
+      .eq('id', upload.id);
+    await logAudit('UPDATE', 'instrumental_uploads', upload.id, { action: 'marked_reviewed', review_notes: reviewNotes });
+    setReviewDialog(null);
+    setReviewNotes('');
+    fetchUploads();
   }
 
   async function fetchSchools() {
@@ -250,6 +276,11 @@ export default function AdminInstrumentaisPage() {
   const filteredUploads = uploads.filter((u) => {
     if (filterSchool && u.school_id !== filterSchool) return false;
     if (filterTipo && u.type !== filterTipo) return false;
+    if (filterUploader && u.uploaded_by !== filterUploader) return false;
+    if (filterDateFrom && new Date(u.created_at) < new Date(filterDateFrom + 'T00:00:00')) return false;
+    if (filterDateTo && new Date(u.created_at) > new Date(filterDateTo + 'T23:59:59')) return false;
+    if (filterReviewed === 'revisados' && !u.reviewed_by) return false;
+    if (filterReviewed === 'pendentes' && u.reviewed_by) return false;
     return true;
   });
 
@@ -308,42 +339,103 @@ export default function AdminInstrumentaisPage() {
           </div>
 
           {/* Filtros */}
-          <div className="flex flex-wrap gap-3">
-            <Select
-              value={filterSchool || '__all'}
-              onValueChange={(v) => setFilterSchool(v === '__all' ? '' : v)}
-            >
-              <SelectTrigger className="w-52">
-                <SelectValue placeholder="Filtrar por escola" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">Todas as escolas</SelectItem>
-                {schools.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-3">
+              <Select
+                value={filterSchool || '__all'}
+                onValueChange={(v) => setFilterSchool(v === '__all' ? '' : v)}
+              >
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Filtrar por escola" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">Todas as escolas</SelectItem>
+                  {schools.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select
-              value={filterTipo || '__all'}
-              onValueChange={(v) => setFilterTipo(v === '__all' ? '' : v)}
-            >
-              <SelectTrigger className="w-52">
-                <SelectValue placeholder="Filtrar por tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">Todos os tipos</SelectItem>
-                {Object.entries(TIPO_LABELS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select
+                value={filterTipo || '__all'}
+                onValueChange={(v) => setFilterTipo(v === '__all' ? '' : v)}
+              >
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Filtrar por tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">Todos os tipos</SelectItem>
+                  {Object.entries(TIPO_LABELS).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {(filterSchool || filterTipo) && (
-              <Button variant="ghost" size="sm" onClick={() => { setFilterSchool(''); setFilterTipo(''); }}>
-                Limpar filtros
-              </Button>
-            )}
+              <Select
+                value={filterUploader || '__all'}
+                onValueChange={(v) => setFilterUploader(v === '__all' ? '' : v)}
+              >
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Filtrar por Professor DT" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">Todos os DTs</SelectItem>
+                  {Array.from(new Set(uploads.map((u) => u.uploaded_by))).map((userId) => userId && (
+                    <SelectItem key={userId} value={userId}>
+                      {getUploaderName(userId)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filterReviewed}
+                onValueChange={(v) => setFilterReviewed(v as 'todos' | 'revisados' | 'pendentes')}
+              >
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Status de revisão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="pendentes">Pendentes de revisão</SelectItem>
+                  <SelectItem value="revisados">Já revisados</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {(filterSchool || filterTipo || filterUploader || filterReviewed !== 'todos') && (
+                <Button variant="ghost" size="sm" onClick={() => { 
+                  setFilterSchool(''); 
+                  setFilterTipo(''); 
+                  setFilterUploader('');
+                  setFilterReviewed('todos');
+                  setFilterDateFrom('');
+                  setFilterDateTo('');
+                }}>
+                  Limpar todos
+                </Button>
+              )}
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Data de: </Label>
+                <Input
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => setFilterDateFrom(e.target.value)}
+                  className="w-40"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Data até: </Label>
+                <Input
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => setFilterDateTo(e.target.value)}
+                  className="w-40"
+                />
+              </div>
+            </div>
           </div>
 
           <Card>
@@ -362,12 +454,13 @@ export default function AdminInstrumentaisPage() {
                       <TableHead>Aluno</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Data</TableHead>
-                      <TableHead className="w-32">Ações</TableHead>
+                      <TableHead>Revisado</TableHead>
+                      <TableHead className="w-40">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredUploads.map((u) => (
-                      <TableRow key={u.id}>
+                      <TableRow key={u.id} className={u.reviewed_by ? 'opacity-75' : ''}>
                         <TableCell className="font-medium">
                           {getUploaderName(u.uploaded_by)}
                         </TableCell>
@@ -383,6 +476,13 @@ export default function AdminInstrumentaisPage() {
                           {new Date(u.reference_date + 'T00:00:00').toLocaleDateString('pt-BR')}
                         </TableCell>
                         <TableCell>
+                          {u.reviewed_by ? (
+                            <Badge variant="default" className="bg-green-600">✓ Revisado</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-yellow-600">⏳ Pendente</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <div className="flex gap-1">
                             <Button variant="ghost" size="icon" title="Visualizar" onClick={() => handleOpenPdf(u)}>
                               <Eye className="h-4 w-4" />
@@ -390,6 +490,17 @@ export default function AdminInstrumentaisPage() {
                             <Button variant="ghost" size="icon" title="Baixar" onClick={() => handleDownloadPdf(u)}>
                               <Download className="h-4 w-4" />
                             </Button>
+                            {!u.reviewed_by && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                title="Marcar como revisado" 
+                                onClick={() => { setReviewDialog(u); setReviewNotes(''); }}
+                                className="text-blue-600"
+                              >
+                                <BarChart3 className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" title="Excluir" onClick={() => handleDeleteUpload(u)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -491,6 +602,36 @@ export default function AdminInstrumentaisPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ====== DIALOG: MARCAR COMO REVISADO ====== */}
+      <Dialog open={!!reviewDialog} onOpenChange={(open) => !open && setReviewDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Marcar como Revisado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium">Arquivo: {reviewDialog?.original_filename ?? 'Sem nome'}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Enviado em: {reviewDialog?.created_at ? new Date(reviewDialog.created_at).toLocaleDateString('pt-BR') : '—'}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Observações (opcional)</Label>
+              <Textarea
+                value={reviewNotes}
+                onChange={(e) => setReviewNotes(e.target.value)}
+                placeholder="Adicione observações sobre a revisão..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewDialog(null)}>Cancelar</Button>
+            <Button onClick={() => reviewDialog && handleMarkReviewed(reviewDialog)}>Confirmar Revisão</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ====== DIALOG: ADICIONAR / EDITAR MODELO ====== */}
       <Dialog open={modeloDialog} onOpenChange={setModeloDialog}>
