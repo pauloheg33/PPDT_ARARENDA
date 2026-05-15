@@ -42,11 +42,23 @@ interface Profile {
   classroom_id: string | null;
 }
 
+interface School {
+  id: string;
+  name: string;
+}
+
+interface Classroom {
+  id: string;
+  school_id: string;
+  year_grade: string;
+  label: string;
+}
+
 export default function UsuariosPage() {
   const { profile: myProfile } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [schools, setSchools] = useState<any[]>([]);
-  const [classrooms, setClassrooms] = useState<any[]>([]);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
@@ -145,7 +157,15 @@ export default function UsuariosPage() {
   }
 
   async function handleDelete(p: Profile) {
-    if (!confirm(`Excluir o perfil de "${p.full_name}"?`)) return;
+    const schoolName = getSchoolName(p.school_id);
+    const classroomLabel = getClassroomLabel(p.classroom_id);
+    const details = [
+      `Papel: ${ROLE_LABELS[p.role as Role] ?? p.role}`,
+      `Escola: ${schoolName}`,
+      `Turma: ${classroomLabel}`,
+    ].join('\n');
+
+    if (!confirm(`Excluir o perfil de "${p.full_name}"?\n\n${details}`)) return;
 
     try {
       const { error } = await supabase.functions.invoke('delete-user', {
@@ -170,8 +190,20 @@ export default function UsuariosPage() {
     }
   }
 
+  function getSchoolName(schoolId: string | null) {
+    if (!schoolId) return 'Rede';
+    return schools.find((s) => s.id === schoolId)?.name ?? '—';
+  }
+
+  function getClassroomLabel(classroomId: string | null) {
+    if (!classroomId) return '—';
+    const classroom = classrooms.find((c) => c.id === classroomId);
+    if (!classroom) return '—';
+    return `${classroom.year_grade} ${classroom.label}`;
+  }
+
   const filteredClassrooms = form.school_id
-    ? classrooms.filter((c: any) => c.school_id === form.school_id)
+    ? classrooms.filter((c) => c.school_id === form.school_id)
     : classrooms;
 
   return (
@@ -198,22 +230,33 @@ export default function UsuariosPage() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Papel</TableHead>
                   <TableHead>Escola</TableHead>
+                  <TableHead>Turma</TableHead>
                   <TableHead className="w-20">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {profiles.map((p) => (
                   <TableRow key={p.user_id}>
-                    <TableCell className="font-medium">{p.full_name}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <p className="font-medium">{p.full_name}</p>
+                        {p.classroom_id && (
+                          <p className="text-xs text-muted-foreground">
+                            Turma: {getClassroomLabel(p.classroom_id)}
+                          </p>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline">
                         {ROLE_LABELS[p.role as Role] ?? p.role}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {p.school_id
-                        ? schools.find((s: any) => s.id === p.school_id)?.name ?? '—'
-                        : 'Rede'}
+                      {getSchoolName(p.school_id)}
+                    </TableCell>
+                    <TableCell>
+                      {getClassroomLabel(p.classroom_id)}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -291,7 +334,7 @@ export default function UsuariosPage() {
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    {schools.map((s: any) => (
+                    {schools.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name}
                       </SelectItem>
@@ -308,7 +351,7 @@ export default function UsuariosPage() {
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    {filteredClassrooms.map((c: any) => (
+                    {filteredClassrooms.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.year_grade} {c.label}
                       </SelectItem>
