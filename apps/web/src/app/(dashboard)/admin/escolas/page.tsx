@@ -41,6 +41,7 @@ export default function EscolasPage() {
   const [form, setForm] = useState({ name: '', inep: '' });
 
   const isAdmin = profile?.role === 'ADMIN_SME';
+  const isCoord = profile?.role === 'COORD_PPDT';
 
   useEffect(() => {
     fetchSchools();
@@ -117,7 +118,9 @@ export default function EscolasPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Escolas</h1>
-          <p className="text-muted-foreground">Gerenciamento das escolas da rede municipal</p>
+          <p className="text-muted-foreground">
+            {isCoord ? 'Consulta dos dados da sua escola' : 'Gerenciamento das escolas da rede municipal'}
+          </p>
         </div>
         {isAdmin && (
           <Button onClick={openCreate}>

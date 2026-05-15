@@ -70,7 +70,7 @@ export default function DashboardPage() {
         let studentsQuery = supabase.from('students').select('id', { count: 'exact', head: true });
         let statsQuery = supabase.from('v_classroom_stats').select('*');
 
-        if (role === 'GESTOR_ESCOLA' && schoolId) {
+        if ((role === 'GESTOR_ESCOLA' || role === 'COORD_PPDT') && schoolId) {
           schoolsQuery = schoolsQuery.eq('id', schoolId);
           classroomsQuery = classroomsQuery.eq('school_id', schoolId);
           studentsQuery = studentsQuery.eq('school_id', schoolId);
@@ -198,7 +198,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
     ? `${dtClassroom.year_grade} ${dtClassroom.label} · ${dtClassroom.school_name}`
     : null;
 
-  const gestorEscola = role === 'GESTOR_ESCOLA' && classroomStats[0]?.school_name
+  const escolaScopedName = (role === 'GESTOR_ESCOLA' || role === 'COORD_PPDT') && classroomStats[0]?.school_name
     ? classroomStats[0].school_name
     : null;
 
@@ -211,8 +211,10 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
         <p className="text-muted-foreground">
           {role === 'DT' && dtSubtitle
             ? `Professor Diretor de Turma — ${dtSubtitle}`
-            : role === 'GESTOR_ESCOLA' && gestorEscola
-            ? `Gestor Escolar — ${gestorEscola}`
+            : role === 'GESTOR_ESCOLA' && escolaScopedName
+            ? `Gestor Escolar — ${escolaScopedName}`
+            : role === 'COORD_PPDT' && escolaScopedName
+            ? `Coordenação Escolar — ${escolaScopedName}`
             : ROLE_LABELS[role]}
         </p>
       </div>
@@ -220,7 +222,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
       {/* Cards de resumo */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
 
-        {(role === 'ADMIN_SME' || role === 'COORD_PPDT') && (
+        {role === 'ADMIN_SME' && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Escolas</CardTitle>
@@ -242,7 +244,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalClassrooms}</div>
               <p className="text-xs text-muted-foreground">
-                {role === 'GESTOR_ESCOLA' ? 'na escola' : 'na rede'}
+                {role === 'GESTOR_ESCOLA' || role === 'COORD_PPDT' ? 'na escola' : 'na rede'}
               </p>
             </CardContent>
           </Card>
@@ -256,7 +258,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalStudents}</div>
             <p className="text-xs text-muted-foreground">
-              {role === 'DT' ? 'na turma' : role === 'GESTOR_ESCOLA' ? 'na escola' : 'matriculados'}
+              {role === 'DT' ? 'na turma' : role === 'GESTOR_ESCOLA' || role === 'COORD_PPDT' ? 'na escola' : 'matriculados'}
             </p>
           </CardContent>
         </Card>
@@ -450,7 +452,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
-                    {(role === 'ADMIN_SME' || role === 'COORD_PPDT') && (
+                    {role === 'ADMIN_SME' && (
                       <th className="p-2 font-medium">Escola</th>
                     )}
                     <th className="p-2 font-medium">Turma</th>
@@ -472,7 +474,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
                       : 0;
                     return (
                       <tr key={cs.classroom_id} className="border-b hover:bg-muted/50">
-                        {(role === 'ADMIN_SME' || role === 'COORD_PPDT') && (
+                        {role === 'ADMIN_SME' && (
                           <td className="p-2 text-muted-foreground">{cs.school_name ?? '—'}</td>
                         )}
                         <td className="p-2 font-medium">{cs.year_grade} {cs.label}</td>

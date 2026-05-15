@@ -25,10 +25,10 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     'consultar_rede',
   ],
   COORD_PPDT: [
-    'consultar_rede',
-    'acompanhar_escolas',
-    'visualizar_relatorios',
-    'criar_modelos_instrumentais',
+    'consultar_escola',
+    'acompanhar_turmas_da_escola',
+    'visualizar_relatorios_escola',
+    'monitorar_instrumentais_escola',
   ],
   GESTOR_ESCOLA: [
     'consultar_escola',

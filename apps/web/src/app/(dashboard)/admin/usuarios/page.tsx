@@ -89,6 +89,14 @@ export default function UsuariosPage() {
 
   async function handleCreate() {
     if (!form.email || !form.password || !form.full_name) return;
+    if (['COORD_PPDT', 'GESTOR_ESCOLA', 'DT', 'ALUNO'].includes(form.role) && !form.school_id) {
+      alert('Selecione a escola para este perfil.');
+      return;
+    }
+    if (['DT', 'ALUNO'].includes(form.role) && !form.classroom_id) {
+      alert('Selecione a turma para este perfil.');
+      return;
+    }
 
     // signUp cria o auth.user e o trigger cria o profile com role seguro (DT).
     // Depois atualizamos o profile com o role desejado via UPDATE (protegido por RLS).
@@ -323,7 +331,7 @@ export default function UsuariosPage() {
                 </SelectContent>
               </Select>
             </div>
-            {['GESTOR_ESCOLA', 'DT', 'ALUNO'].includes(form.role) && (
+            {['COORD_PPDT', 'GESTOR_ESCOLA', 'DT', 'ALUNO'].includes(form.role) && (
               <div className="space-y-2">
                 <Label>Escola</Label>
                 <Select

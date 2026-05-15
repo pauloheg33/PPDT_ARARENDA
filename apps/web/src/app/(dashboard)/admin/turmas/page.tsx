@@ -63,6 +63,7 @@ export default function TurmasPage() {
   });
 
   const isAdmin = profile?.role === 'ADMIN_SME';
+  const isCoord = profile?.role === 'COORD_PPDT';
 
   useEffect(() => {
     async function loadAll() {
@@ -142,7 +143,9 @@ export default function TurmasPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Turmas</h1>
-          <p className="text-muted-foreground">Gerenciamento de turmas da rede</p>
+          <p className="text-muted-foreground">
+            {isCoord ? 'Consulta das turmas da sua escola' : 'Gerenciamento de turmas da rede'}
+          </p>
         </div>
         {isAdmin && (
           <Button onClick={openCreate}>
