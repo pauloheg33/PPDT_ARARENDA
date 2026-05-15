@@ -31,7 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Eye } from 'lucide-react';
 import Link from 'next/link';
 
 interface Student {
@@ -269,13 +269,20 @@ export default function AlunosPage() {
                   <TableHead>Turma</TableHead>
                   <TableHead>Escola</TableHead>
                   <TableHead>Status</TableHead>
-                  {canEdit && <TableHead className="w-24">Ações</TableHead>}
+                  <TableHead className="w-32">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell className="font-medium">{s.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link
+                        href={`/admin/alunos/ficha-biografica?alunoId=${s.id}`}
+                        className="hover:text-primary hover:underline underline-offset-4"
+                      >
+                        {s.name}
+                      </Link>
+                    </TableCell>
                     <TableCell>{s.enrollment_code || '—'}</TableCell>
                     <TableCell>
                       {(s as any).classrooms?.year_grade} {(s as any).classrooms?.label}
@@ -286,20 +293,25 @@ export default function AlunosPage() {
                         {s.status}
                       </Badge>
                     </TableCell>
-                    {canEdit && (
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Link href={`/admin/alunos/ficha-biografica?alunoId=${s.id}`}>
+                          <Button variant="ghost" size="icon" title="Ver ficha">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(s)} title="Editar aluno">
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          {isAdmin && (
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(s)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
+                        )}
+                        {isAdmin && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(s)} title="Excluir aluno">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
