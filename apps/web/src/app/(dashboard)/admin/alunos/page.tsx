@@ -47,11 +47,23 @@ interface Student {
   classrooms?: { year_grade: string; label: string; schools?: { name: string } };
 }
 
+interface School {
+  id: string;
+  name: string;
+}
+
+interface Classroom {
+  id: string;
+  school_id: string;
+  year_grade: string;
+  label: string;
+}
+
 export default function AlunosPage() {
   const { profile } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
-  const [schools, setSchools] = useState<any[]>([]);
-  const [classrooms, setClassrooms] = useState<any[]>([]);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
@@ -70,11 +82,19 @@ export default function AlunosPage() {
   });
 
   const isAdmin = profile?.role === 'ADMIN_SME';
+  const isCoord = profile?.role === 'COORD_PPDT';
+  const isSchoolScoped = isCoord || profile?.role === 'GESTOR_ESCOLA';
   const canEdit = profile?.role === 'ADMIN_SME' || profile?.role === 'DT';
 
   useEffect(() => {
     fetchAll();
   }, []);
+
+  useEffect(() => {
+    if (isSchoolScoped && profile?.school_id) {
+      setFilterSchool(profile.school_id);
+    }
+  }, [isSchoolScoped, profile?.school_id]);
 
   async function fetchAll() {
     setLoading(true);
@@ -139,8 +159,8 @@ export default function AlunosPage() {
       const { error } = await supabase.from('students').update(payload).eq('id', editing.id);
       if (!error) {
         await logAudit('UPDATE', 'students', editing.id, { name: form.name });
-        const cls = classrooms.find((c: any) => c.id === form.classroom_id);
-        const school = schools.find((s: any) => s.id === form.school_id);
+        const cls = classrooms.find((c) => c.id === form.classroom_id);
+        const school = schools.find((s) => s.id === form.school_id);
         setStudents((prev) =>
           prev.map((s) =>
             s.id === editing.id
@@ -160,8 +180,8 @@ export default function AlunosPage() {
       if (!error && data) {
         await logAudit('CREATE', 'students', data.id, { name: form.name });
         await supabase.from('bio_forms').insert({ student_id: data.id, sections_json: {} });
-        const cls = classrooms.find((c: any) => c.id === form.classroom_id);
-        const school = schools.find((s: any) => s.id === form.school_id);
+        const cls = classrooms.find((c) => c.id === form.classroom_id);
+        const school = schools.find((s) => s.id === form.school_id);
         const newStudent: Student = {
           ...(data as any),
           classrooms: cls
@@ -188,14 +208,20 @@ export default function AlunosPage() {
 
   const filtered = students.filter((s) => {
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase());
-    const matchSchool = filterSchool === 'all' || s.school_id === filterSchool;
+    const effectiveSchoolFilter = isSchoolScoped && profile?.school_id ? profile.school_id : filterSchool;
+    const matchSchool = effectiveSchoolFilter === 'all' || s.school_id === effectiveSchoolFilter;
     const matchClass = filterClassroom === 'all' || s.classroom_id === filterClassroom;
     return matchSearch && matchSchool && matchClass;
   });
 
-  const filteredClassrooms =
+  const formClassrooms =
     form.school_id
-      ? classrooms.filter((c: any) => c.school_id === form.school_id)
+      ? classrooms.filter((c) => c.school_id === form.school_id)
+      : classrooms;
+
+  const filterClassrooms =
+    (isSchoolScoped && profile?.school_id ? profile.school_id : filterSchool) !== 'all'
+      ? classrooms.filter((c) => c.school_id === (isSchoolScoped && profile?.school_id ? profile.school_id : filterSchool))
       : classrooms;
 
   return (
@@ -226,13 +252,20 @@ export default function AlunosPage() {
             />
           </div>
         </div>
-        <Select value={filterSchool} onValueChange={setFilterSchool}>
+        <Select
+          value={isSchoolScoped && profile?.school_id ? profile.school_id : filterSchool}
+          onValueChange={(value) => {
+            setFilterSchool(value);
+            setFilterClassroom('all');
+          }}
+          disabled={isSchoolScoped}
+        >
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Escola" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas as escolas</SelectItem>
-            {schools.map((s: any) => (
+            {!isSchoolScoped && <SelectItem value="all">Todas as escolas</SelectItem>}
+            {schools.map((s) => (
               <SelectItem key={s.id} value={s.id}>
                 {s.name}
               </SelectItem>
@@ -245,7 +278,7 @@ export default function AlunosPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as turmas</SelectItem>
-            {classrooms.map((c: any) => (
+            {filterClassrooms.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.year_grade} {c.label}
               </SelectItem>
@@ -363,7 +396,7 @@ export default function AlunosPage() {
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {schools.map((s: any) => (
+                  {schools.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
                     </SelectItem>
@@ -378,10 +411,10 @@ export default function AlunosPage() {
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredClassrooms.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.year_grade} {c.label}
-                    </SelectItem>
+                  {formClassrooms.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.year_grade} {c.label}
+                      </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

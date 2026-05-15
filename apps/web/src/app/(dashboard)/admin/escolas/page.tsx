@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 
 interface School {
   id: string;
@@ -39,6 +39,7 @@ export default function EscolasPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSchool, setEditingSchool] = useState<School | null>(null);
   const [form, setForm] = useState({ name: '', inep: '' });
+  const [search, setSearch] = useState('');
 
   const isAdmin = profile?.role === 'ADMIN_SME';
   const isCoord = profile?.role === 'COORD_PPDT';
@@ -113,6 +114,16 @@ export default function EscolasPage() {
     }
   }
 
+  const filteredSchools = schools.filter((school) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+
+    return (
+      school.name.toLowerCase().includes(term) ||
+      (school.inep ?? '').toLowerCase().includes(term)
+    );
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -130,11 +141,25 @@ export default function EscolasPage() {
         )}
       </div>
 
+      <div className="flex flex-wrap gap-4">
+        <div className="flex-1 min-w-[220px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={isCoord ? 'Buscar na sua escola...' : 'Buscar por nome ou INEP...'}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+      </div>
+
       <Card>
         <CardContent className="pt-6">
           {loading ? (
             <p className="text-muted-foreground">Carregando...</p>
-          ) : schools.length === 0 ? (
+          ) : filteredSchools.length === 0 ? (
             <p className="text-muted-foreground">Nenhuma escola cadastrada.</p>
           ) : (
             <Table>
@@ -146,7 +171,7 @@ export default function EscolasPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {schools.map((school) => (
+                {filteredSchools.map((school) => (
                   <TableRow key={school.id}>
                     <TableCell className="font-medium">{school.name}</TableCell>
                     <TableCell>{school.inep || '—'}</TableCell>
@@ -171,6 +196,9 @@ export default function EscolasPage() {
               </TableBody>
             </Table>
           )}
+          <p className="mt-4 text-sm text-muted-foreground">
+            {filteredSchools.length} escola(s) encontrada(s)
+          </p>
         </CardContent>
       </Card>
 

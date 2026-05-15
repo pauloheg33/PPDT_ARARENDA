@@ -31,7 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 
 interface School {
   id: string;
@@ -55,6 +55,8 @@ export default function TurmasPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Classroom | null>(null);
+  const [search, setSearch] = useState('');
+  const [filterSchool, setFilterSchool] = useState('all');
   const [form, setForm] = useState({
     school_id: '',
     year_grade: '',
@@ -64,6 +66,7 @@ export default function TurmasPage() {
 
   const isAdmin = profile?.role === 'ADMIN_SME';
   const isCoord = profile?.role === 'COORD_PPDT';
+  const isSchoolScoped = isCoord || profile?.role === 'GESTOR_ESCOLA';
 
   useEffect(() => {
     async function loadAll() {
@@ -78,6 +81,12 @@ export default function TurmasPage() {
     }
     loadAll();
   }, []);
+
+  useEffect(() => {
+    if (isSchoolScoped && profile?.school_id) {
+      setFilterSchool(profile.school_id);
+    }
+  }, [isSchoolScoped, profile?.school_id]);
 
   function openCreate() {
     setEditing(null);
@@ -138,6 +147,21 @@ export default function TurmasPage() {
     }
   }
 
+  const filteredClassrooms = classrooms.filter((classroom) => {
+    const term = search.trim().toLowerCase();
+    const classroomSchoolName = classroom.schools?.name ?? '';
+    const matchSearch =
+      !term ||
+      classroom.year_grade.toLowerCase().includes(term) ||
+      classroom.label.toLowerCase().includes(term) ||
+      classroom.shift.toLowerCase().includes(term) ||
+      classroomSchoolName.toLowerCase().includes(term);
+
+    const effectiveSchoolFilter = isSchoolScoped && profile?.school_id ? profile.school_id : filterSchool;
+    const matchSchool = effectiveSchoolFilter === 'all' || classroom.school_id === effectiveSchoolFilter;
+    return matchSearch && matchSchool;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -155,11 +179,42 @@ export default function TurmasPage() {
         )}
       </div>
 
+      <div className="flex flex-wrap gap-4">
+        <div className="flex-1 min-w-[220px]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por turma, ano, turno ou escola..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+        <Select
+          value={isSchoolScoped && profile?.school_id ? profile.school_id : filterSchool}
+          onValueChange={setFilterSchool}
+          disabled={isSchoolScoped}
+        >
+          <SelectTrigger className="w-[240px]">
+            <SelectValue placeholder="Filtrar por escola" />
+          </SelectTrigger>
+          <SelectContent>
+            {!isSchoolScoped && <SelectItem value="all">Todas as escolas</SelectItem>}
+            {schools.map((school) => (
+              <SelectItem key={school.id} value={school.id}>
+                {school.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card>
         <CardContent className="pt-6">
           {loading ? (
             <p className="text-muted-foreground">Carregando...</p>
-          ) : classrooms.length === 0 ? (
+          ) : filteredClassrooms.length === 0 ? (
             <p className="text-muted-foreground">Nenhuma turma cadastrada.</p>
           ) : (
             <Table>
@@ -173,7 +228,7 @@ export default function TurmasPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {classrooms.map((c) => (
+                {filteredClassrooms.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell>{(c as any).schools?.name ?? '—'}</TableCell>
                     <TableCell className="font-medium">{c.year_grade}</TableCell>
@@ -198,6 +253,9 @@ export default function TurmasPage() {
               </TableBody>
             </Table>
           )}
+          <p className="mt-4 text-sm text-muted-foreground">
+            {filteredClassrooms.length} turma(s) encontrada(s)
+          </p>
         </CardContent>
       </Card>
 
