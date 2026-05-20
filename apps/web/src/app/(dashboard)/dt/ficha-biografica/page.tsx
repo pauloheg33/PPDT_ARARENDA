@@ -282,7 +282,7 @@ async function buildBioFormPdf(params: {
     const autoCount = items.filter((item) => !item.width).length;
     const remainingWidth = contentWidth - totalCustomWidth;
     const autoWidth = autoCount > 0 ? remainingWidth / autoCount : 0;
-    const rowHeight = 7;
+    const rowHeight = 8;
 
     ensureSpace(rowHeight + 2);
 
@@ -293,21 +293,21 @@ async function buildBioFormPdf(params: {
       const width = item.width ?? autoWidth;
       const safeValue = (item.value || '').trim();
       const labelText = `${item.label}:`;
+      doc.setFont('helvetica', 'bold');
       const labelWidth = doc.getTextWidth(labelText);
-      const valueX = x + labelWidth + 1.5;
-      const lineStart = valueX + 1;
+      const valueX = x + labelWidth + 3;
+      const lineStart = x + labelWidth + 2;
       const lineEnd = x + width;
 
-      doc.setFont('helvetica', 'bold');
       doc.text(labelText, x, y);
       doc.setFont('helvetica', 'normal');
 
       if (safeValue) {
-        const truncated = doc.splitTextToSize(safeValue, Math.max(width - labelWidth - 4, 12))[0] ?? safeValue;
+        const truncated = doc.splitTextToSize(safeValue, Math.max(width - labelWidth - 7, 12))[0] ?? safeValue;
         doc.text(truncated, valueX, y);
       }
 
-      doc.line(lineStart, y + 0.8, lineEnd, y + 0.8);
+      doc.line(lineStart, y + 1.2, lineEnd, y + 1.2);
       x += width;
     });
 
