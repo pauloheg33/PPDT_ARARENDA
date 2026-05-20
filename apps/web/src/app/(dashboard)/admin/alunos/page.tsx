@@ -224,12 +224,21 @@ export default function AlunosPage() {
       ? classrooms.filter((c) => c.school_id === (isSchoolScoped && profile?.school_id ? profile.school_id : filterSchool))
       : classrooms;
 
+  const fixedSchoolName = isSchoolScoped && profile?.school_id
+    ? schools.find((school) => school.id === profile.school_id)?.name ?? 'Escola vinculada'
+    : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Alunos</h1>
           <p className="text-muted-foreground">Cadastro e consulta de alunos</p>
+          {fixedSchoolName && (
+            <Badge variant="outline" className="mt-2">
+              Escola fixa: {fixedSchoolName}
+            </Badge>
+          )}
         </div>
         {canEdit && (
           <Button onClick={openCreate}>

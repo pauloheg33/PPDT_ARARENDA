@@ -162,6 +162,10 @@ export default function TurmasPage() {
     return matchSearch && matchSchool;
   });
 
+  const fixedSchoolName = isSchoolScoped && profile?.school_id
+    ? schools.find((school) => school.id === profile.school_id)?.name ?? 'Escola vinculada'
+    : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -170,6 +174,11 @@ export default function TurmasPage() {
           <p className="text-muted-foreground">
             {isCoord ? 'Consulta das turmas da sua escola' : 'Gerenciamento de turmas da rede'}
           </p>
+          {fixedSchoolName && (
+            <Badge variant="outline" className="mt-2">
+              Escola fixa: {fixedSchoolName}
+            </Badge>
+          )}
         </div>
         {isAdmin && (
           <Button onClick={openCreate}>

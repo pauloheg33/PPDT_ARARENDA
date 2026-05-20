@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -124,6 +125,10 @@ export default function EscolasPage() {
     );
   });
 
+  const fixedSchoolName = isCoord && profile?.school_id
+    ? schools.find((school) => school.id === profile.school_id)?.name ?? 'Escola vinculada'
+    : null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -132,6 +137,11 @@ export default function EscolasPage() {
           <p className="text-muted-foreground">
             {isCoord ? 'Consulta dos dados da sua escola' : 'Gerenciamento das escolas da rede municipal'}
           </p>
+          {fixedSchoolName && (
+            <Badge variant="outline" className="mt-2">
+              Escola fixa: {fixedSchoolName}
+            </Badge>
+          )}
         </div>
         {isAdmin && (
           <Button onClick={openCreate}>
