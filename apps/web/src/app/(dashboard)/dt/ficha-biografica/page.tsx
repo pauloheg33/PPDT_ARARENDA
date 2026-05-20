@@ -265,6 +265,43 @@ async function buildBioFormPdf(params: {
     addParagraph(`${label}: ${safeValue}`, { gapAfter: 3 });
   };
 
+  const addInfoGrid = (items: Array<{ label: string; value: string }>) => {
+    const columns = 2;
+    const gap = 6;
+    const cardHeight = 18;
+    const cardWidth = (contentWidth - gap) / columns;
+    const rows = Math.ceil(items.length / columns);
+
+    ensureSpace(rows * (cardHeight + 4) + 10);
+
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(214, 220, 229);
+
+    items.forEach((item, index) => {
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      const x = margin + column * (cardWidth + gap);
+      const rowY = y + row * (cardHeight + 4);
+      const safeValue = (item.value || '').trim() || '—';
+      const valueLines = doc.splitTextToSize(safeValue, cardWidth - 8);
+
+      doc.roundedRect(x, rowY, cardWidth, cardHeight, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(item.label.toUpperCase(), x + 4, rowY + 5.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(valueLines, x + 4, rowY + 11);
+    });
+
+    doc.setTextColor(0, 0, 0);
+    y += rows * (cardHeight + 4) + 2;
+  };
+
   const addSectionTitle = (title: string) => {
     ensureSpace(14);
     doc.setFillColor(239, 243, 248);
@@ -280,7 +317,7 @@ async function buildBioFormPdf(params: {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.text('Ficha Biográfica do Estudante', pageWidth / 2, y, { align: 'center' });
-  y += 8;
+  y += 10;
 
   if (!completed) {
     doc.setTextColor(146, 64, 14);
@@ -291,17 +328,26 @@ async function buildBioFormPdf(params: {
     y += 8;
   }
 
-  doc.setDrawColor(210, 214, 220);
-  doc.roundedRect(margin, y - 2, contentWidth, 28, 2, 2, 'S');
-  y += 4;
-  addKeyValue('Escola', schoolName);
-  addKeyValue('Aluno', student.name);
-  addKeyValue('Matrícula', student.enrollment_code ?? '—');
-  addKeyValue('Turma', classroomLabel);
-  addKeyValue('Professor Diretor de Turma', dtName || '—');
-  addKeyValue('Gerado em', generatedAtLabel);
-  addKeyValue('Status da ficha', statusLabel);
-  y += 2;
+  addSectionTitle('Identificação do Documento');
+  addInfoGrid([
+    { label: 'Escola', value: schoolName },
+    { label: 'Turma', value: classroomLabel },
+    { label: 'Aluno', value: student.name },
+    { label: 'Matrícula', value: student.enrollment_code ?? '—' },
+    { label: 'Professor Diretor de Turma', value: dtName || '—' },
+    { label: 'Gerado em', value: generatedAtLabel },
+  ]);
+
+  ensureSpace(14);
+  doc.setFillColor(completed ? 220 : 254, completed ? 252 : 243, completed ? 231 : 199);
+  doc.setDrawColor(completed ? 34 : 217, completed ? 197 : 119, completed ? 94 : 6);
+  doc.roundedRect(margin, y, contentWidth, 10, 2, 2, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(completed ? 22 : 146, completed ? 101 : 64, completed ? 52 : 14);
+  doc.text(`Status da ficha: ${statusLabel}`, margin + 4, y + 6.5);
+  doc.setTextColor(0, 0, 0);
+  y += 16;
 
   for (const section of SECTIONS) {
     addSectionTitle(section.label);
