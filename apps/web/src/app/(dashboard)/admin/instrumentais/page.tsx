@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
+import { InstrumentalViewerDialog } from '@/components/instrumentais/instrumental-viewer-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -127,6 +128,8 @@ export default function AdminInstrumentaisPage() {
   const [filterReviewed, setFilterReviewed] = useState<'todos' | 'revisados' | 'pendentes'>('todos');
   const [reviewDialog, setReviewDialog] = useState<UploadRow | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
+  const [viewerUpload, setViewerUpload] = useState<UploadRow | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
   // ---- Biblioteca ----
   const [modelos, setModelos] = useState<Modelo[]>([]);
@@ -252,7 +255,8 @@ export default function AdminInstrumentaisPage() {
     }
 
     await logInstrumentalFileAccess(upload, 'view');
-    window.open(data.signedUrl, '_blank');
+    setViewerUpload(upload);
+    setViewerUrl(data.signedUrl);
   }
 
   async function handleDownloadPdf(upload: UploadRow) {
@@ -797,6 +801,30 @@ export default function AdminInstrumentaisPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <InstrumentalViewerDialog
+        open={!!viewerUpload}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewerUpload(null);
+            setViewerUrl(null);
+          }
+        }}
+        fileUrl={viewerUrl}
+        title={viewerUpload ? (viewerUpload.original_filename ?? TIPO_LABELS[viewerUpload.type]) : 'Visualizar instrumental'}
+        description={
+          viewerUpload
+            ? [
+                viewerUpload.school?.name,
+                viewerUpload.classroom ? `${viewerUpload.classroom.year_grade} ${viewerUpload.classroom.label}` : null,
+                viewerUpload.student?.name ?? null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : null
+        }
+        storagePath={viewerUpload?.storage_path}
+      />
     </div>
   );
 }

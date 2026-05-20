@@ -4,6 +4,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
+import {
+  INSTRUMENTAL_FILE_ACCEPT,
+  isSupportedInstrumentalFile,
+  normalizeInstrumentalUpload,
+} from '@/lib/instrumentais';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,6 +51,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { InstrumentalViewerDialog } from '@/components/instrumentais/instrumental-viewer-dialog';
 
 type TipoInstrumental =
   | 'ficha_biografica'
@@ -122,6 +128,8 @@ export default function InstrumentaisPage() {
   const [replaceFile, setReplaceFile] = useState<File | null>(null);
   const [replacing, setReplacing] = useState(false);
   const replaceInputRef = useRef<HTMLInputElement>(null);
+  const [viewerUpload, setViewerUpload] = useState<Upload | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
   // ---- Biblioteca ----
   const [modelos, setModelos] = useState<Modelo[]>([]);
@@ -194,10 +202,16 @@ export default function InstrumentaisPage() {
   }
 
   async function handleOpenPdf(upload: Upload) {
-    const { data } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from('instrumentais')
       .createSignedUrl(upload.storage_path, 120);
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    if (error || !data?.signedUrl) {
+      alert(`Não foi possível abrir o arquivo${error ? `: ${error.message}` : '.'}`);
+      return;
+    }
+
+    setViewerUpload(upload);
+    setViewerUrl(data.signedUrl);
   }
 
   async function handleDownloadPdf(upload: Upload) {
@@ -224,17 +238,31 @@ export default function InstrumentaisPage() {
     setUploadError('');
 
     if (!uploadForm.type || !selectedFile || !classroomId || !schoolId || !user) {
-      setUploadError('Preencha todos os campos obrigatórios e selecione um arquivo PDF.');
+      setUploadError('Preencha todos os campos obrigatórios e selecione um PDF ou uma foto do documento.');
+      return;
+    }
+
+    if (!isSupportedInstrumentalFile(selectedFile)) {
+      setUploadError('Envie um arquivo em PDF, JPG, PNG ou WEBP.');
       return;
     }
 
     setUploading(true);
-    const ext = selectedFile.name.split('.').pop();
-    const path = `${user.id}/${uploadForm.type}/${crypto.randomUUID()}.${ext}`;
+    let preparedUpload: Awaited<ReturnType<typeof normalizeInstrumentalUpload>>;
+
+    try {
+      preparedUpload = await normalizeInstrumentalUpload(selectedFile);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Não foi possível preparar o arquivo para envio.');
+      setUploading(false);
+      return;
+    }
+
+    const path = `${user.id}/${uploadForm.type}/${crypto.randomUUID()}.pdf`;
 
     const { error: storageError } = await supabase.storage
       .from('instrumentais')
-      .upload(path, selectedFile, { contentType: 'application/pdf', upsert: false });
+      .upload(path, preparedUpload.file, { contentType: 'application/pdf', upsert: false });
 
     if (storageError) {
       setUploadError(`Erro no upload: ${storageError.message}`);
@@ -249,7 +277,7 @@ export default function InstrumentaisPage() {
       student_id: uploadForm.student_id || null,
       type: uploadForm.type,
       storage_path: path,
-      original_filename: selectedFile.name,
+      original_filename: preparedUpload.storedFilename,
       reference_date: uploadForm.reference_date,
       observations: uploadForm.observations || null,
     });
@@ -264,6 +292,8 @@ export default function InstrumentaisPage() {
     await logAudit('CREATE', 'instrumental_uploads', path, {
       type: uploadForm.type,
       classroom_id: classroomId,
+      source_format: preparedUpload.sourceFormat,
+      original_source_filename: preparedUpload.originalFilename,
     });
 
     setUploadForm({
@@ -280,14 +310,28 @@ export default function InstrumentaisPage() {
 
   async function handleReplace() {
     if (!replaceTarget || !replaceFile || !user) return;
+    if (!isSupportedInstrumentalFile(replaceFile)) {
+      alert('Envie um arquivo em PDF, JPG, PNG ou WEBP.');
+      return;
+    }
+
     setReplacing(true);
 
-    const ext = replaceFile.name.split('.').pop();
-    const newPath = `${user.id}/${replaceTarget.type}/${crypto.randomUUID()}.${ext}`;
+    let preparedUpload: Awaited<ReturnType<typeof normalizeInstrumentalUpload>>;
+
+    try {
+      preparedUpload = await normalizeInstrumentalUpload(replaceFile);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Não foi possível preparar o arquivo para substituição.');
+      setReplacing(false);
+      return;
+    }
+
+    const newPath = `${user.id}/${replaceTarget.type}/${crypto.randomUUID()}.pdf`;
 
     const { error: storageError } = await supabase.storage
       .from('instrumentais')
-      .upload(newPath, replaceFile, { contentType: 'application/pdf', upsert: false });
+      .upload(newPath, preparedUpload.file, { contentType: 'application/pdf', upsert: false });
 
     if (storageError) {
       alert(`Erro no upload: ${storageError.message}`);
@@ -301,9 +345,15 @@ export default function InstrumentaisPage() {
       .from('instrumental_uploads')
       .update({
         storage_path: newPath,
-        original_filename: replaceFile.name,
+        original_filename: preparedUpload.storedFilename,
       })
       .eq('id', replaceTarget.id);
+
+    await logAudit('UPDATE', 'instrumental_uploads', replaceTarget.id, {
+      action: 'file_replaced',
+      source_format: preparedUpload.sourceFormat,
+      original_source_filename: preparedUpload.originalFilename,
+    });
 
     setReplaceTarget(null);
     setReplaceFile(null);
@@ -661,22 +711,36 @@ export default function InstrumentaisPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Arquivo PDF <span className="text-destructive">*</span></Label>
+                  <Label>Arquivo do Instrumental <span className="text-destructive">*</span></Label>
                   <div
                     className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer hover:bg-accent transition-colors"
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                     {selectedFile ? (
-                      <p className="text-sm font-medium text-primary">{selectedFile.name}</p>
+                      <div className="space-y-1 text-center">
+                        <p className="text-sm font-medium text-primary">{selectedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedFile.type === 'application/pdf'
+                            ? 'PDF pronto para envio.'
+                            : 'Imagem selecionada. Ela sera convertida em PDF antes do upload.'}
+                        </p>
+                      </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Clique para selecionar um PDF (máx. 10 MB)</p>
+                      <div className="space-y-1 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          Clique para selecionar um PDF ou foto do documento (máx. 10 MB)
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Imagens serao convertidas em PDF automaticamente.
+                        </p>
+                      </div>
                     )}
                   </div>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="application/pdf"
+                    accept={INSTRUMENTAL_FILE_ACCEPT}
                     className="hidden"
                     onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
                   />
@@ -814,15 +878,27 @@ export default function InstrumentaisPage() {
             >
               <Upload className="h-6 w-6 text-muted-foreground mb-2" />
               {replaceFile ? (
-                <p className="text-sm font-medium text-primary">{replaceFile.name}</p>
+                <div className="space-y-1 text-center">
+                  <p className="text-sm font-medium text-primary">{replaceFile.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {replaceFile.type === 'application/pdf'
+                      ? 'PDF pronto para substituicao.'
+                      : 'Imagem selecionada. Ela sera convertida em PDF antes do envio.'}
+                  </p>
+                </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Selecione o novo PDF</p>
+                <div className="space-y-1 text-center">
+                  <p className="text-sm text-muted-foreground">Selecione o novo PDF ou foto do documento</p>
+                  <p className="text-xs text-muted-foreground">
+                    Imagens serao convertidas em PDF automaticamente.
+                  </p>
+                </div>
               )}
             </div>
             <input
               ref={replaceInputRef}
               type="file"
-              accept="application/pdf"
+              accept={INSTRUMENTAL_FILE_ACCEPT}
               className="hidden"
               onChange={(e) => setReplaceFile(e.target.files?.[0] ?? null)}
             />
@@ -835,6 +911,24 @@ export default function InstrumentaisPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <InstrumentalViewerDialog
+        open={!!viewerUpload}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewerUpload(null);
+            setViewerUrl(null);
+          }
+        }}
+        fileUrl={viewerUrl}
+        title={viewerUpload ? (viewerUpload.original_filename ?? TIPO_LABELS[viewerUpload.type]) : 'Visualizar instrumental'}
+        description={
+          viewerUpload
+            ? `${TIPO_LABELS[viewerUpload.type]}${viewerUpload.student?.name ? ` · ${viewerUpload.student.name}` : ''}`
+            : null
+        }
+        storagePath={viewerUpload?.storage_path}
+      />
     </div>
   );
 }
