@@ -155,6 +155,46 @@ async function getManualInstrumentalReviewMode() {
   return data?.review_mode_enabled ?? true;
 }
 
+async function createAutoApprovalNotification(params: {
+  userId: string;
+  uploadId: string;
+  studentId: string;
+  studentName: string;
+}) {
+  const title = `${'Ficha Biográfica'} de ${params.studentName} aprovado automaticamente`;
+  const message = `Seu instrumental "Ficha Biográfica" do aluno ${params.studentName} foi aprovado automaticamente pelo sistema.`;
+
+  const { error } = await supabase.from('notifications').insert({
+    recipient_user_id: params.userId,
+    created_by: params.userId,
+    type: 'instrumental_review',
+    title,
+    message,
+    link_path: '/dt/instrumentais',
+    metadata: {
+      upload_id: params.uploadId,
+      type: 'ficha_biografica',
+      student_id: params.studentId,
+      student_name: params.studentName,
+      review_notes: 'Aprovado automaticamente com o modo de revisão desativado.',
+      reviewer_name: 'Sistema',
+      reviewed_at: new Date().toISOString(),
+      approval_mode: 'automatic',
+    },
+  });
+
+  if (error) {
+    console.error('[Ficha Biográfica] Erro ao criar notificação automática:', error.message);
+    return;
+  }
+
+  await logAudit('CREATE', 'notifications', params.uploadId, {
+    action: 'instrumental_auto_review_notification_created',
+    upload_id: params.uploadId,
+    recipient_user_id: params.userId,
+  });
+}
+
 function cloneDefaultSections() {
   return JSON.parse(JSON.stringify(defaultSections)) as Record<string, Record<string, string>>;
 }
@@ -637,6 +677,15 @@ function FichaBiograficaPageContent() {
         bio_form_completed: saveResult.isComplete,
         generation_mode: existingAction,
       });
+
+      if (!manualReviewEnabled) {
+        await createAutoApprovalNotification({
+          userId: user.id,
+          uploadId: instrumentalId,
+          studentId: student.id,
+          studentName: student.name,
+        });
+      }
 
       triggerBrowserDownload(generatedPdf.blob, generatedPdf.filename);
       setExistingBioPdf({

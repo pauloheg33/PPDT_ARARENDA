@@ -115,6 +115,52 @@ async function getManualInstrumentalReviewMode() {
   return data?.review_mode_enabled ?? true;
 }
 
+async function createAutoApprovalNotification(params: {
+  userId: string;
+  uploadId: string;
+  type: TipoInstrumental;
+  studentId?: string | null;
+  studentName?: string | null;
+}) {
+  const studentName = params.studentName?.trim() || null;
+  const title = studentName
+    ? `${TIPO_LABELS[params.type]} de ${studentName} aprovado automaticamente`
+    : `${TIPO_LABELS[params.type]} aprovado automaticamente`;
+  const message = studentName
+    ? `Seu instrumental "${TIPO_LABELS[params.type]}" do aluno ${studentName} foi aprovado automaticamente pelo sistema.`
+    : `Seu instrumental "${TIPO_LABELS[params.type]}" foi aprovado automaticamente pelo sistema.`;
+
+  const { error } = await supabase.from('notifications').insert({
+    recipient_user_id: params.userId,
+    created_by: params.userId,
+    type: 'instrumental_review',
+    title,
+    message,
+    link_path: '/dt/instrumentais',
+    metadata: {
+      upload_id: params.uploadId,
+      type: params.type,
+      student_id: params.studentId ?? null,
+      student_name: studentName,
+      review_notes: 'Aprovado automaticamente com o modo de revisão desativado.',
+      reviewer_name: 'Sistema',
+      reviewed_at: new Date().toISOString(),
+      approval_mode: 'automatic',
+    },
+  });
+
+  if (error) {
+    console.error('[DT Instrumentais] Erro ao criar notificação automática:', error.message);
+    return;
+  }
+
+  await logAudit('CREATE', 'notifications', params.uploadId, {
+    action: 'instrumental_auto_review_notification_created',
+    upload_id: params.uploadId,
+    recipient_user_id: params.userId,
+  });
+}
+
 export default function InstrumentaisPage() {
   const { profile, user } = useAuth();
 
@@ -289,7 +335,11 @@ export default function InstrumentaisPage() {
       return;
     }
 
-    const { error: dbError } = await supabase.from('instrumental_uploads').insert({
+    const selectedStudentName = uploadForm.student_id
+      ? students.find((student) => student.id === uploadForm.student_id)?.name ?? null
+      : null;
+
+    const { data: insertedUpload, error: dbError } = await supabase.from('instrumental_uploads').insert({
       uploaded_by: user.id,
       school_id: schoolId,
       classroom_id: classroomId,
@@ -303,7 +353,9 @@ export default function InstrumentaisPage() {
       review_notes: manualReviewEnabled
         ? null
         : 'Aprovado automaticamente com o modo de revisão desativado.',
-    });
+    })
+      .select('id')
+      .single();
 
     if (dbError) {
       await supabase.storage.from('instrumentais').remove([path]);
@@ -318,6 +370,16 @@ export default function InstrumentaisPage() {
       source_format: preparedUpload.sourceFormat,
       original_source_filename: preparedUpload.originalFilename,
     });
+
+    if (!manualReviewEnabled && insertedUpload?.id) {
+      await createAutoApprovalNotification({
+        userId: user.id,
+        uploadId: insertedUpload.id,
+        type: uploadForm.type,
+        studentId: uploadForm.student_id || null,
+        studentName: selectedStudentName,
+      });
+    }
 
     setUploadForm({
       student_id: '',
@@ -371,7 +433,7 @@ export default function InstrumentaisPage() {
 
     await supabase.storage.from('instrumentais').remove([replaceTarget.storage_path]);
 
-    await supabase
+    const { error: replaceError } = await supabase
       .from('instrumental_uploads')
       .update({
         storage_path: newPath,
@@ -384,11 +446,28 @@ export default function InstrumentaisPage() {
       })
       .eq('id', replaceTarget.id);
 
+    if (replaceError) {
+      await supabase.storage.from('instrumentais').remove([newPath]);
+      alert(`Não foi possível atualizar o registro do instrumental: ${replaceError.message}`);
+      setReplacing(false);
+      return;
+    }
+
     await logAudit('UPDATE', 'instrumental_uploads', replaceTarget.id, {
       action: 'file_replaced',
       source_format: preparedUpload.sourceFormat,
       original_source_filename: preparedUpload.originalFilename,
     });
+
+    if (!manualReviewEnabled) {
+      await createAutoApprovalNotification({
+        userId: user.id,
+        uploadId: replaceTarget.id,
+        type: replaceTarget.type,
+        studentId: replaceTarget.student_id,
+        studentName: replaceTarget.student?.name ?? null,
+      });
+    }
 
     setReplaceTarget(null);
     setReplaceFile(null);
