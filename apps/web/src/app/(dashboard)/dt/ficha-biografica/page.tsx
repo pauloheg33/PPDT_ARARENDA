@@ -580,7 +580,7 @@ function FichaBiograficaPageContent() {
     setGeneratingPdf(true);
 
     try {
-      const saveResult = await saveBioForm(false);
+      const saveResult = await saveBioForm(true);
       if (saveResult.error) {
         alert(`Não foi possível salvar a ficha antes de gerar o PDF: ${saveResult.error.message}`);
         return;
