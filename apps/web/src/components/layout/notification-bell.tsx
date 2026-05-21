@@ -84,6 +84,8 @@ export function NotificationBell() {
     }
   };
 
+  const unreadNotifications = notifications.filter((notification) => !notification.read_at).length;
+
   return (
     <>
       <Button
@@ -102,52 +104,64 @@ export function NotificationBell() {
       </Button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Notificações</DialogTitle>
+        <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden p-0">
+          <DialogHeader className="border-b px-6 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle>Notificações</DialogTitle>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{notifications.length} total</Badge>
+                {unreadNotifications > 0 && (
+                  <Badge variant="secondary">{unreadNotifications} nova(s)</Badge>
+                )}
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-3">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
             {loading ? (
               <p className="text-sm text-muted-foreground">Carregando notificações...</p>
             ) : notifications.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma notificação disponível.</p>
             ) : (
-              notifications.map((notification) => (
-                <button
-                  key={notification.id}
-                  type="button"
-                  onClick={() => handleNotificationClick(notification)}
-                  className={`w-full rounded-lg border p-4 text-left transition-colors hover:bg-accent ${
-                    notification.read_at ? 'bg-background' : 'bg-primary/5 border-primary/30'
-                  }`}
-                >
-                  <div className="mb-2 flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      {notification.type === 'instrumental_review' ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Megaphone className="h-4 w-4 text-blue-600" />
+              <div className="space-y-3">
+                {notifications.map((notification) => (
+                  <button
+                    key={notification.id}
+                    type="button"
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`w-full rounded-lg border p-4 text-left transition-colors hover:bg-accent ${
+                      notification.read_at ? 'bg-background' : 'bg-primary/5 border-primary/30'
+                    }`}
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {notification.type === 'instrumental_review' ? (
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                          ) : (
+                            <Megaphone className="h-4 w-4 shrink-0 text-blue-600" />
+                          )}
+                          <p className="truncate font-medium">{notification.title}</p>
+                        </div>
+                      </div>
+                      {!notification.read_at && (
+                        <Badge variant="secondary">Nova</Badge>
                       )}
-                      <p className="font-medium">{notification.title}</p>
                     </div>
-                    {!notification.read_at && (
-                      <Badge variant="secondary">Nova</Badge>
-                    )}
-                  </div>
 
-                  <p className="text-sm text-muted-foreground whitespace-pre-line">
-                    {notification.message}
-                  </p>
+                    <p className="max-h-24 overflow-hidden whitespace-pre-line break-words text-sm leading-6 text-muted-foreground">
+                      {notification.message}
+                    </p>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>{formatTimestamp(notification.created_at)}</span>
-                    {notification.expires_at && (
-                      <span>Válido até {formatTimestamp(notification.expires_at)}</span>
-                    )}
-                  </div>
-                </button>
-              ))
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{formatTimestamp(notification.created_at)}</span>
+                      {notification.expires_at && (
+                        <span>Válido até {formatTimestamp(notification.expires_at)}</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </DialogContent>
