@@ -141,6 +141,20 @@ interface StudentDetails {
   } | null;
 }
 
+async function getManualInstrumentalReviewMode() {
+  const { data, error } = await supabase
+    .from('instrumental_review_settings')
+    .select('review_mode_enabled')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[Ficha Biográfica] Erro ao carregar modo de revisão:', error.message);
+  }
+
+  return data?.review_mode_enabled ?? true;
+}
+
 function cloneDefaultSections() {
   return JSON.parse(JSON.stringify(defaultSections)) as Record<string, Record<string, string>>;
 }
@@ -538,6 +552,8 @@ function FichaBiograficaPageContent() {
         completed: saveResult.isComplete,
         dtName: profile.full_name ?? '',
       });
+      const manualReviewEnabled = await getManualInstrumentalReviewMode();
+      const autoReviewTimestamp = new Date().toISOString();
 
       const storagePath = `${user.id}/ficha_biografica/${crypto.randomUUID()}.pdf`;
       const pdfFile = new File([generatedPdf.blob], generatedPdf.filename, {
@@ -568,6 +584,11 @@ function FichaBiograficaPageContent() {
             original_filename: generatedPdf.filename,
             reference_date: generatedPdf.generatedAt.toISOString().split('T')[0],
             observations: `Gerado automaticamente da ficha biográfica (${saveResult.isComplete ? 'completa' : 'pendente'})`,
+            reviewed_by: null,
+            reviewed_at: manualReviewEnabled ? null : autoReviewTimestamp,
+            review_notes: manualReviewEnabled
+              ? null
+              : 'Aprovado automaticamente com o modo de revisão desativado.',
           })
           .eq('id', existingUpload.id);
 
@@ -592,6 +613,10 @@ function FichaBiograficaPageContent() {
             original_filename: generatedPdf.filename,
             reference_date: generatedPdf.generatedAt.toISOString().split('T')[0],
             observations: `Gerado automaticamente da ficha biográfica (${saveResult.isComplete ? 'completa' : 'pendente'})`,
+            reviewed_at: manualReviewEnabled ? null : autoReviewTimestamp,
+            review_notes: manualReviewEnabled
+              ? null
+              : 'Aprovado automaticamente com o modo de revisão desativado.',
           })
           .select('id')
           .single();

@@ -101,6 +101,20 @@ interface Modelo {
   file_type: string | null;
 }
 
+async function getManualInstrumentalReviewMode() {
+  const { data, error } = await supabase
+    .from('instrumental_review_settings')
+    .select('review_mode_enabled')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[DT Instrumentais] Erro ao carregar modo de revisão:', error.message);
+  }
+
+  return data?.review_mode_enabled ?? true;
+}
+
 export default function InstrumentaisPage() {
   const { profile, user } = useAuth();
 
@@ -262,17 +276,7 @@ export default function InstrumentaisPage() {
 
     const path = `${user.id}/${uploadForm.type}/${crypto.randomUUID()}.pdf`;
 
-    const { data: reviewSettings, error: reviewSettingsError } = await supabase
-      .from('instrumental_review_settings')
-      .select('review_mode_enabled')
-      .eq('id', 1)
-      .maybeSingle();
-
-    if (reviewSettingsError) {
-      console.error('[DT Instrumentais] Erro ao carregar modo de revisão:', reviewSettingsError.message);
-    }
-
-    const manualReviewEnabled = reviewSettings?.review_mode_enabled ?? true;
+    const manualReviewEnabled = await getManualInstrumentalReviewMode();
     const autoReviewTimestamp = new Date().toISOString();
 
     const { error: storageError } = await supabase.storage
@@ -340,6 +344,8 @@ export default function InstrumentaisPage() {
     }
 
     setReplacing(true);
+    const manualReviewEnabled = await getManualInstrumentalReviewMode();
+    const autoReviewTimestamp = new Date().toISOString();
 
     let preparedUpload: Awaited<ReturnType<typeof normalizeInstrumentalUpload>>;
 
@@ -370,6 +376,11 @@ export default function InstrumentaisPage() {
       .update({
         storage_path: newPath,
         original_filename: preparedUpload.storedFilename,
+        reviewed_by: manualReviewEnabled ? null : null,
+        reviewed_at: manualReviewEnabled ? null : autoReviewTimestamp,
+        review_notes: manualReviewEnabled
+          ? null
+          : 'Aprovado automaticamente com o modo de revisão desativado.',
       })
       .eq('id', replaceTarget.id);
 
