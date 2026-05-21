@@ -349,6 +349,53 @@ export interface Database {
           created_at?: string | null;
         };
       };
+      notifications: {
+        Row: {
+          id: string;
+          recipient_user_id: string;
+          created_by: string | null;
+          type: string;
+          notice_group_id: string | null;
+          title: string;
+          message: string;
+          link_path: string | null;
+          read_at: string | null;
+          expires_at: string | null;
+          is_active: boolean;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          recipient_user_id: string;
+          created_by?: string | null;
+          type: string;
+          notice_group_id?: string | null;
+          title: string;
+          message: string;
+          link_path?: string | null;
+          read_at?: string | null;
+          expires_at?: string | null;
+          is_active?: boolean;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          recipient_user_id?: string;
+          created_by?: string | null;
+          type?: string;
+          notice_group_id?: string | null;
+          title?: string;
+          message?: string;
+          link_path?: string | null;
+          read_at?: string | null;
+          expires_at?: string | null;
+          is_active?: boolean;
+          metadata?: Json;
+          created_at?: string;
+        };
+      };
     };
     Views: {
       v_classroom_stats: {

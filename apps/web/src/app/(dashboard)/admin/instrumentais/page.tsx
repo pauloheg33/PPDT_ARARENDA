@@ -176,6 +176,39 @@ export default function AdminInstrumentaisPage() {
       alert(`Não foi possível marcar o arquivo como revisado: ${error.message}`);
       return;
     }
+
+    if (upload.uploaded_by) {
+      const reviewMessage = reviewNotes?.trim()
+        ? `Seu instrumental "${TIPO_LABELS[upload.type]}" foi revisado.\n\nObservação: ${reviewNotes.trim()}`
+        : `Seu instrumental "${TIPO_LABELS[upload.type]}" foi revisado sem observações adicionais.`;
+
+      const { error: notificationError } = await supabase.from('notifications').insert({
+        recipient_user_id: upload.uploaded_by,
+        created_by: user.id,
+        type: 'instrumental_review',
+        title: `${TIPO_LABELS[upload.type]} revisado`,
+        message: reviewMessage,
+        link_path: '/dt/instrumentais',
+        metadata: {
+          upload_id: upload.id,
+          type: upload.type,
+          review_notes: reviewNotes?.trim() || null,
+          reviewer_name: profile?.full_name ?? 'Administrador SME',
+          reviewed_at: new Date().toISOString(),
+        },
+      });
+
+      if (notificationError) {
+        console.error('[Instrumentais Admin] Erro ao criar notificação de revisão:', notificationError.message);
+      } else {
+        await logAudit('CREATE', 'notifications', upload.id, {
+          action: 'instrumental_review_notification_created',
+          upload_id: upload.id,
+          recipient_user_id: upload.uploaded_by,
+        });
+      }
+    }
+
     await logAudit('UPDATE', 'instrumental_uploads', upload.id, { action: 'marked_reviewed', review_notes: reviewNotes });
     setReviewDialog(null);
     setReviewNotes('');

@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   FolderOpen,
+  Bell,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -67,6 +68,12 @@ const navItems: NavItem[] = [
     href: '/admin/importar',
     icon: <Upload className="h-4 w-4" />,
     roles: ['ADMIN_SME', 'GESTOR_ESCOLA', 'DT'],
+  },
+  {
+    label: 'Avisos',
+    href: '/admin/avisos',
+    icon: <Bell className="h-4 w-4" />,
+    roles: ['ADMIN_SME'],
   },
   {
     label: 'Usuários',

@@ -4,10 +4,12 @@ import React, { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { Sidebar } from '@/components/layout/sidebar';
+import { NotificationBell } from '@/components/layout/notification-bell';
 import type { Role } from '@/lib/roles';
 
 // Mapeia prefixos de rota aos roles que podem acessá-los
 const ROUTE_ROLE_MAP: { prefix: string; roles: Role[] }[] = [
+  { prefix: '/admin/avisos', roles: ['ADMIN_SME'] },
   { prefix: '/admin/usuarios', roles: ['ADMIN_SME'] },
   { prefix: '/admin/escolas', roles: ['ADMIN_SME', 'COORD_PPDT'] },
   { prefix: '/admin/turmas', roles: ['ADMIN_SME', 'COORD_PPDT', 'GESTOR_ESCOLA'] },
@@ -58,7 +60,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 overflow-auto p-4 md:p-8">{children}</main>
+      <main className="flex-1 overflow-auto p-4 md:p-8">
+        <div className="mb-4 flex justify-end">
+          <NotificationBell />
+        </div>
+        {children}
+      </main>
     </div>
   );
 }
