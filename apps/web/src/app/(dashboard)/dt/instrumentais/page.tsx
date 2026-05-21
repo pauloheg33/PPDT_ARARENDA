@@ -262,6 +262,19 @@ export default function InstrumentaisPage() {
 
     const path = `${user.id}/${uploadForm.type}/${crypto.randomUUID()}.pdf`;
 
+    const { data: reviewSettings, error: reviewSettingsError } = await supabase
+      .from('instrumental_review_settings')
+      .select('review_mode_enabled')
+      .eq('id', 1)
+      .maybeSingle();
+
+    if (reviewSettingsError) {
+      console.error('[DT Instrumentais] Erro ao carregar modo de revisão:', reviewSettingsError.message);
+    }
+
+    const manualReviewEnabled = reviewSettings?.review_mode_enabled ?? true;
+    const autoReviewTimestamp = new Date().toISOString();
+
     const { error: storageError } = await supabase.storage
       .from('instrumentais')
       .upload(path, preparedUpload.file, { contentType: 'application/pdf', upsert: false });
@@ -282,6 +295,10 @@ export default function InstrumentaisPage() {
       original_filename: preparedUpload.storedFilename,
       reference_date: uploadForm.reference_date,
       observations: uploadForm.observations || null,
+      reviewed_at: manualReviewEnabled ? null : autoReviewTimestamp,
+      review_notes: manualReviewEnabled
+        ? null
+        : 'Aprovado automaticamente com o modo de revisão desativado.',
     });
 
     if (dbError) {
@@ -306,7 +323,11 @@ export default function InstrumentaisPage() {
     });
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    setUploadSuccess('Instrumental enviado com sucesso. O arquivo já está disponível em "Meus Registros".');
+    setUploadSuccess(
+      manualReviewEnabled
+        ? 'Instrumental enviado com sucesso. O arquivo já está disponível em "Meus Registros".'
+        : 'Instrumental enviado e aprovado automaticamente. O arquivo já está disponível em "Meus Registros".'
+    );
     setUploading(false);
     fetchUploads();
   }

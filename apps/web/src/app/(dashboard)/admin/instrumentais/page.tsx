@@ -130,6 +130,9 @@ export default function AdminInstrumentaisPage() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [viewerUpload, setViewerUpload] = useState<UploadRow | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [reviewModeEnabled, setReviewModeEnabled] = useState(true);
+  const [loadingReviewMode, setLoadingReviewMode] = useState(true);
+  const [savingReviewMode, setSavingReviewMode] = useState(false);
 
   // ---- Biblioteca ----
   const [modelos, setModelos] = useState<Modelo[]>([]);
@@ -143,6 +146,7 @@ export default function AdminInstrumentaisPage() {
     fetchUploads();
     fetchModelos();
     fetchSchools();
+    fetchReviewMode();
   }, []);
 
   const isAdminSme = profile?.role === 'ADMIN_SME';
@@ -160,6 +164,53 @@ export default function AdminInstrumentaisPage() {
     setUploads((uploadsRes.data as UploadRow[]) ?? []);
     setProfiles((profilesRes.data as Profile[]) ?? []);
     setLoadingUploads(false);
+  }
+
+  async function fetchReviewMode() {
+    setLoadingReviewMode(true);
+    const { data, error } = await supabase
+      .from('instrumental_review_settings')
+      .select('review_mode_enabled')
+      .eq('id', 1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Instrumentais Admin] Erro ao carregar modo de revisão:', error.message);
+      setReviewModeEnabled(true);
+      setLoadingReviewMode(false);
+      return;
+    }
+
+    setReviewModeEnabled(data?.review_mode_enabled ?? true);
+    setLoadingReviewMode(false);
+  }
+
+  async function handleToggleReviewMode() {
+    if (!user?.id || !isAdminSme || savingReviewMode) return;
+
+    const nextValue = !reviewModeEnabled;
+    setSavingReviewMode(true);
+
+    const { error } = await supabase.from('instrumental_review_settings').upsert({
+      id: 1,
+      review_mode_enabled: nextValue,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      alert(`Não foi possível alterar o modo de revisão: ${error.message}`);
+      setSavingReviewMode(false);
+      return;
+    }
+
+    await logAudit('UPDATE', 'instrumental_review_settings', '1', {
+      review_mode_enabled: nextValue,
+      action: nextValue ? 'manual_review_enabled' : 'automatic_review_enabled',
+    });
+
+    setReviewModeEnabled(nextValue);
+    setSavingReviewMode(false);
   }
 
   async function handleMarkReviewed(upload: UploadRow) {
@@ -247,9 +298,11 @@ export default function AdminInstrumentaisPage() {
   }
 
   function getReviewSummary(upload: UploadRow) {
-    if (!upload.reviewed_by) return null;
+    if (!upload.reviewed_at) return null;
 
-    const reviewer = getUploaderName(upload.reviewed_by);
+    const reviewer = upload.reviewed_by
+      ? getUploaderName(upload.reviewed_by)
+      : 'Revisão automática';
     const reviewedAt = upload.reviewed_at
       ? new Date(upload.reviewed_at).toLocaleString('pt-BR')
       : null;
@@ -395,16 +448,53 @@ export default function AdminInstrumentaisPage() {
     if (filterUploader && u.uploaded_by !== filterUploader) return false;
     if (filterDateFrom && new Date(u.created_at) < new Date(filterDateFrom + 'T00:00:00')) return false;
     if (filterDateTo && new Date(u.created_at) > new Date(filterDateTo + 'T23:59:59')) return false;
-    if (filterReviewed === 'revisados' && !u.reviewed_by) return false;
-    if (filterReviewed === 'pendentes' && u.reviewed_by) return false;
+    if (filterReviewed === 'revisados' && !u.reviewed_at) return false;
+    if (filterReviewed === 'pendentes' && u.reviewed_at) return false;
     return true;
   });
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Instrumentais do PPDT</h1>
-        <p className="text-muted-foreground">Monitoramento de envios e gestão da biblioteca</p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Instrumentais do PPDT</h1>
+          <p className="text-muted-foreground">Monitoramento de envios e gestão da biblioteca</p>
+        </div>
+
+        {isAdminSme && (
+          <Card className="w-full max-w-xl border-emerald-200 bg-emerald-50/50">
+            <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-emerald-900">Modo de revisão</p>
+                <p className="text-sm text-emerald-900/80">
+                  {loadingReviewMode
+                    ? 'Carregando configuração atual...'
+                    : reviewModeEnabled
+                      ? 'Ligado: novos envios ficam pendentes até a revisão manual do Admin.'
+                      : 'Desligado: novos envios são aprovados automaticamente ao chegar.'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={reviewModeEnabled ? 'default' : 'outline'}
+                className="min-w-52 justify-center gap-2"
+                onClick={handleToggleReviewMode}
+                disabled={loadingReviewMode || savingReviewMode}
+              >
+                {reviewModeEnabled ? (
+                  <ToggleRight className="h-4 w-4" />
+                ) : (
+                  <ToggleLeft className="h-4 w-4" />
+                )}
+                {savingReviewMode
+                  ? 'Salvando...'
+                  : reviewModeEnabled
+                    ? 'Revisão ligada'
+                    : 'Aprovação automática'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Tabs defaultValue="monitoramento">
@@ -579,7 +669,7 @@ export default function AdminInstrumentaisPage() {
                       const reviewSummary = getReviewSummary(u);
 
                       return (
-                        <TableRow key={u.id} className={u.reviewed_by ? 'opacity-75' : ''}>
+                        <TableRow key={u.id} className={u.reviewed_at ? 'opacity-75' : ''}>
                           <TableCell className="font-medium">
                             {getUploaderName(u.uploaded_by)}
                           </TableCell>
@@ -595,9 +685,11 @@ export default function AdminInstrumentaisPage() {
                             {new Date(u.reference_date + 'T00:00:00').toLocaleDateString('pt-BR')}
                           </TableCell>
                           <TableCell>
-                            {u.reviewed_by ? (
+                            {u.reviewed_at ? (
                               <div className="space-y-1">
-                                <Badge variant="default" className="bg-green-600">✓ Revisado</Badge>
+                                <Badge variant="default" className="bg-green-600">
+                                  {u.reviewed_by ? '✓ Revisado' : '✓ Revisado automaticamente'}
+                                </Badge>
                                 <div className="text-xs text-muted-foreground">
                                   <p>{reviewSummary?.reviewer ?? '—'}</p>
                                   {reviewSummary?.reviewedAt && <p>{reviewSummary.reviewedAt}</p>}
@@ -616,7 +708,7 @@ export default function AdminInstrumentaisPage() {
                               <Button variant="ghost" size="icon" title="Baixar" onClick={() => handleDownloadPdf(u)}>
                                 <Download className="h-4 w-4" />
                               </Button>
-                              {canManageUploads && !u.reviewed_by && (
+                              {canManageUploads && !u.reviewed_at && (
                                 <Button
                                   variant="ghost"
                                   size="icon"

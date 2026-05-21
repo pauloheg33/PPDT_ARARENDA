@@ -349,6 +349,26 @@ export interface Database {
           created_at?: string | null;
         };
       };
+      instrumental_review_settings: {
+        Row: {
+          id: number;
+          review_mode_enabled: boolean;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          review_mode_enabled?: boolean;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: number;
+          review_mode_enabled?: boolean;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+      };
       notifications: {
         Row: {
           id: string;
