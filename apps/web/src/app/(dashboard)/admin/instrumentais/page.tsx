@@ -178,20 +178,30 @@ export default function AdminInstrumentaisPage() {
     }
 
     if (upload.uploaded_by) {
+      const studentName = upload.student?.name?.trim() || null;
+      const reviewTitle = studentName
+        ? `${TIPO_LABELS[upload.type]} de ${studentName} revisado`
+        : `${TIPO_LABELS[upload.type]} revisado`;
       const reviewMessage = reviewNotes?.trim()
-        ? `Seu instrumental "${TIPO_LABELS[upload.type]}" foi revisado.\n\nObservação: ${reviewNotes.trim()}`
-        : `Seu instrumental "${TIPO_LABELS[upload.type]}" foi revisado sem observações adicionais.`;
+        ? studentName
+          ? `Seu instrumental "${TIPO_LABELS[upload.type]}" do aluno ${studentName} foi revisado.\n\nObservação: ${reviewNotes.trim()}`
+          : `Seu instrumental "${TIPO_LABELS[upload.type]}" foi revisado.\n\nObservação: ${reviewNotes.trim()}`
+        : studentName
+          ? `Seu instrumental "${TIPO_LABELS[upload.type]}" do aluno ${studentName} foi revisado sem observações adicionais.`
+          : `Seu instrumental "${TIPO_LABELS[upload.type]}" foi revisado sem observações adicionais.`;
 
       const { error: notificationError } = await supabase.from('notifications').insert({
         recipient_user_id: upload.uploaded_by,
         created_by: user.id,
         type: 'instrumental_review',
-        title: `${TIPO_LABELS[upload.type]} revisado`,
+        title: reviewTitle,
         message: reviewMessage,
         link_path: '/dt/instrumentais',
         metadata: {
           upload_id: upload.id,
           type: upload.type,
+          student_id: upload.student_id,
+          student_name: studentName,
           review_notes: reviewNotes?.trim() || null,
           reviewer_name: profile?.full_name ?? 'Administrador SME',
           reviewed_at: new Date().toISOString(),
