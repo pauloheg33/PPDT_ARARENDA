@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, CheckCircle2, Megaphone } from 'lucide-react';
+import { ArrowLeft, Bell, CheckCircle2, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -30,6 +30,7 @@ export function NotificationBell() {
   const [count, setCount] = useState(0);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<AppNotification | null>(null);
 
   const canReceiveNotifications = profile?.role === 'DT';
 
@@ -64,6 +65,9 @@ export function NotificationBell() {
 
   const handleOpenChange = async (nextOpen: boolean) => {
     setOpen(nextOpen);
+    if (!nextOpen) {
+      setSelectedNotification(null);
+    }
     if (nextOpen) {
       await Promise.all([refreshCount(), loadNotifications()]);
     }
@@ -77,8 +81,16 @@ export function NotificationBell() {
         item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item
       )
     );
-    setOpen(false);
 
+    if (notification.type === 'admin_notice') {
+      setSelectedNotification({
+        ...notification,
+        read_at: notification.read_at ?? new Date().toISOString(),
+      });
+      return;
+    }
+
+    setOpen(false);
     if (notification.link_path) {
       router.push(notification.link_path);
     }
@@ -107,7 +119,21 @@ export function NotificationBell() {
         <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden p-0">
           <DialogHeader className="border-b px-6 py-4">
             <div className="flex items-center justify-between gap-3">
-              <DialogTitle>Notificações</DialogTitle>
+              <div className="flex items-center gap-3">
+                {selectedNotification && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSelectedNotification(null)}
+                    title="Voltar para a lista"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                )}
+                <DialogTitle>
+                  {selectedNotification ? 'Aviso completo' : 'Notificações'}
+                </DialogTitle>
+              </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline">{notifications.length} total</Badge>
                 {unreadNotifications > 0 && (
@@ -120,6 +146,29 @@ export function NotificationBell() {
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {loading ? (
               <p className="text-sm text-muted-foreground">Carregando notificações...</p>
+            ) : selectedNotification ? (
+              <div className="rounded-lg border bg-background p-5">
+                <div className="mb-3 flex items-start gap-2">
+                  {selectedNotification.type === 'instrumental_review' ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                  ) : (
+                    <Megaphone className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-lg font-semibold">{selectedNotification.title}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>{formatTimestamp(selectedNotification.created_at)}</span>
+                      {selectedNotification.expires_at && (
+                        <span>Válido até {formatTimestamp(selectedNotification.expires_at)}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="whitespace-pre-line break-words text-sm leading-7 text-muted-foreground">
+                  {selectedNotification.message}
+                </div>
+              </div>
             ) : notifications.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma notificação disponível.</p>
             ) : (
