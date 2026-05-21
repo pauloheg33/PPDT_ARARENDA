@@ -121,6 +121,7 @@ export default function InstrumentaisPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [uploadSuccess, setUploadSuccess] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ---- Substituir ----
@@ -236,6 +237,7 @@ export default function InstrumentaisPage() {
   async function handleSubmitUpload(e: React.FormEvent) {
     e.preventDefault();
     setUploadError('');
+    setUploadSuccess('');
 
     if (!uploadForm.type || !selectedFile || !classroomId || !schoolId || !user) {
       setUploadError('Preencha todos os campos obrigatórios e selecione um PDF ou uma foto do documento.');
@@ -304,6 +306,7 @@ export default function InstrumentaisPage() {
     });
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    setUploadSuccess('Instrumental enviado com sucesso. O arquivo já está disponível em "Meus Registros".');
     setUploading(false);
     fetchUploads();
   }
@@ -757,6 +760,11 @@ export default function InstrumentaisPage() {
                 </div>
 
                 {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
+                {uploadSuccess && (
+                  <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                    {uploadSuccess}
+                  </div>
+                )}
 
                 <Button type="submit" disabled={uploading} className="w-full">
                   {uploading ? 'Enviando...' : 'Enviar Instrumental'}
