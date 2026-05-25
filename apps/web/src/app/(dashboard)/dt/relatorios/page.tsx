@@ -207,7 +207,11 @@ function RelatoriosPageContent() {
                           <TableCell>{s.familia?.tipo_moradia ?? '—'}</TableCell>
                           <TableCell>{s.vida_escolar?.disciplina_preferida ?? '—'}</TableCell>
                           <TableCell>{s.vida_escolar?.disciplina_dificuldade ?? '—'}</TableCell>
-                          <TableCell><Badge variant={r.bio_completed ? 'success' : 'warning'}>{r.bio_completed ? 'OK' : 'Pend.'}</Badge></TableCell>
+                          <TableCell>
+                            <Badge variant={r.bio_completed ? 'success' : 'warning'}>
+                              {r.bio_completed ? 'Completa' : 'Pendente'}
+                            </Badge>
+                          </TableCell>
                         </TableRow>
                       );
                     })}

@@ -40,6 +40,13 @@ interface Stats {
   photosMissing: number;
 }
 
+interface DtBioStudent {
+  id: string;
+  name: string;
+  enrollment_code: string | null;
+  bioCompleted: boolean;
+}
+
 export default function DashboardPage() {
   const { profile, user, signOut } = useAuth();
   const router = useRouter();
@@ -54,7 +61,7 @@ export default function DashboardPage() {
     photosMissing: 0,
   });
   const [classroomStats, setClassroomStats] = useState<any[]>([]);
-  const [dtPendingBios, setDtPendingBios] = useState<any[]>([]);
+  const [dtBioStudents, setDtBioStudents] = useState<DtBioStudent[]>([]);
   const [dtPendingPhotos, setDtPendingPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -130,7 +137,14 @@ export default function DashboardPage() {
             withPhoto = new Set((photosRes.data ?? []).map((p: any) => p.student_id));
           }
 
-          setDtPendingBios(allStudents.filter((s: any) => !s.bio_forms?.[0]?.completed));
+          setDtBioStudents(
+            allStudents.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              enrollment_code: s.enrollment_code ?? null,
+              bioCompleted: Boolean(s.bio_forms?.[0]?.completed),
+            }))
+          );
           setDtPendingPhotos(allStudents.filter((s: any) => !withPhoto.has(s.id)));
         }
       } catch (err) {
@@ -342,32 +356,38 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <CheckCircle className="h-4 w-4 text-yellow-500" />
-                Fichas Pendentes
+                Ficha Biográfica
                 <Badge
-                  variant={dtPendingBios.length === 0 ? 'success' : 'warning'}
+                  variant="outline"
                   className="ml-auto"
                 >
-                  {dtPendingBios.length}
+                  {dtBioStudents.length}
                 </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {dtPendingBios.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Todas as fichas estão completas!</p>
+              {dtBioStudents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum aluno ativo encontrado na turma.</p>
               ) : (
                 <div className="max-h-60 overflow-y-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Aluno</TableHead>
+                        <TableHead>Status da ficha</TableHead>
                         <TableHead>Matrícula</TableHead>
                         <TableHead className="w-8" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {dtPendingBios.map((s) => (
+                      {dtBioStudents.map((s) => (
                         <TableRow key={s.id}>
                           <TableCell className="text-sm font-medium">{s.name}</TableCell>
+                          <TableCell>
+                            <Badge variant={s.bioCompleted ? 'success' : 'warning'}>
+                              {s.bioCompleted ? 'Completa' : 'Pendente'}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {s.enrollment_code ?? '—'}
                           </TableCell>
