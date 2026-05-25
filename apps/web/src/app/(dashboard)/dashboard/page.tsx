@@ -119,13 +119,25 @@ export default function DashboardPage() {
           // 1. Buscar alunos da turma com status das fichas
           const studentsListRes = await supabase
             .from('students')
-            .select('id, name, enrollment_code, bio_forms(completed)')
+            .select('id, name, enrollment_code')
             .eq('classroom_id', classroomId)
             .eq('status', 'Ativo')
             .order('name');
 
           const allStudents = studentsListRes.data ?? [];
           const studentIds = allStudents.map((s: any) => s.id);
+
+          let bioCompletedByStudent = new Map<string, boolean>();
+          if (studentIds.length > 0) {
+            const bioFormsRes = await supabase
+              .from('bio_forms')
+              .select('student_id, completed')
+              .in('student_id', studentIds);
+
+            bioCompletedByStudent = new Map(
+              (bioFormsRes.data ?? []).map((row) => [row.student_id, Boolean(row.completed)])
+            );
+          }
 
           // 2. Buscar fotos pelos IDs dos alunos (student_photos não tem classroom_id)
           let withPhoto = new Set<string>();
@@ -142,7 +154,7 @@ export default function DashboardPage() {
               id: s.id,
               name: s.name,
               enrollment_code: s.enrollment_code ?? null,
-              bioCompleted: Boolean(s.bio_forms?.[0]?.completed),
+              bioCompleted: bioCompletedByStudent.get(s.id) ?? false,
             }))
           );
           setDtPendingPhotos(allStudents.filter((s: any) => !withPhoto.has(s.id)));
