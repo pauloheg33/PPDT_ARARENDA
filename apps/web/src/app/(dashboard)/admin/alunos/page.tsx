@@ -31,7 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Search, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Eye, FilePenLine } from 'lucide-react';
 import Link from 'next/link';
 
 interface Student {
@@ -83,6 +83,7 @@ export default function AlunosPage() {
 
   const isAdmin = profile?.role === 'ADMIN_SME';
   const isCoord = profile?.role === 'COORD_PPDT';
+  const isDt = profile?.role === 'DT';
   const isSchoolScoped = isCoord || profile?.role === 'GESTOR_ESCOLA';
   const canEdit = profile?.role === 'ADMIN_SME' || profile?.role === 'DT';
 
@@ -311,7 +312,7 @@ export default function AlunosPage() {
                   <TableHead>Turma</TableHead>
                   <TableHead>Escola</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-32">Ações</TableHead>
+                  <TableHead className="w-48">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -342,6 +343,13 @@ export default function AlunosPage() {
                             <Eye className="h-4 w-4" />
                           </Button>
                         </Link>
+                        {isDt && (
+                          <Link href={`/dt/ficha-biografica?turmaId=${s.classroom_id}&alunoId=${s.id}`}>
+                            <Button variant="ghost" size="icon" title="Editar ficha biográfica">
+                              <FilePenLine className="h-4 w-4 text-primary" />
+                            </Button>
+                          </Link>
+                        )}
                         {canEdit && (
                           <Button variant="ghost" size="icon" onClick={() => openEdit(s)} title="Editar aluno">
                             <Pencil className="h-4 w-4" />
