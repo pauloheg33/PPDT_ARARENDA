@@ -4,6 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
+import {
+  syncBioFormInstrumental,
+  type BioFormInstrumentalStudent,
+  type BioFormSections,
+} from '@/lib/bio-form-instrumental';
 import { InstrumentalViewerDialog } from '@/components/instrumentais/instrumental-viewer-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +50,7 @@ import {
   ExternalLink,
   ToggleLeft,
   ToggleRight,
+  RefreshCw,
 } from 'lucide-react';
 
 type TipoInstrumental =
@@ -94,6 +100,18 @@ interface Profile {
   full_name: string;
 }
 
+interface SyncQueueEntry {
+  student_id: string;
+  status: 'pending' | 'synced' | 'error';
+  last_error: string | null;
+}
+
+interface BioFormRow {
+  student_id: string;
+  completed: boolean;
+  sections_json: BioFormSections;
+}
+
 interface Modelo {
   id: string;
   category: Categoria;
@@ -133,6 +151,8 @@ export default function AdminInstrumentaisPage() {
   const [reviewModeEnabled, setReviewModeEnabled] = useState(true);
   const [loadingReviewMode, setLoadingReviewMode] = useState(true);
   const [savingReviewMode, setSavingReviewMode] = useState(false);
+  const [syncQueueCount, setSyncQueueCount] = useState(0);
+  const [syncingBioForms, setSyncingBioForms] = useState(false);
 
   // ---- Biblioteca ----
   const [modelos, setModelos] = useState<Modelo[]>([]);
@@ -142,6 +162,9 @@ export default function AdminInstrumentaisPage() {
   const [modeloForm, setModeloForm] = useState<Omit<Modelo, 'id' | 'active'>>(EMPTY_MODELO);
   const [savingModelo, setSavingModelo] = useState(false);
 
+  const isAdminSme = profile?.role === 'ADMIN_SME';
+  const canManageUploads = isAdminSme;
+
   useEffect(() => {
     fetchUploads();
     fetchModelos();
@@ -149,8 +172,11 @@ export default function AdminInstrumentaisPage() {
     fetchReviewMode();
   }, []);
 
-  const isAdminSme = profile?.role === 'ADMIN_SME';
-  const canManageUploads = isAdminSme;
+  useEffect(() => {
+    if (isAdminSme) {
+      fetchSyncQueueCount();
+    }
+  }, [isAdminSme]);
 
   async function fetchUploads() {
     setLoadingUploads(true);
@@ -183,6 +209,203 @@ export default function AdminInstrumentaisPage() {
 
     setReviewModeEnabled(data?.review_mode_enabled ?? true);
     setLoadingReviewMode(false);
+  }
+
+  async function fetchSyncQueueCount() {
+    if (!isAdminSme) return;
+
+    const { count, error } = await supabase
+      .from('bio_form_sync_queue')
+      .select('student_id', { count: 'exact', head: true })
+      .in('status', ['pending', 'error']);
+
+    if (error) {
+      console.error('[Instrumentais Admin] Erro ao carregar fila de sincronização:', error.message);
+      return;
+    }
+
+    setSyncQueueCount(count ?? 0);
+  }
+
+  async function refreshBioFormSyncQueue() {
+    if (!user?.id) return;
+
+    const [bioFormsRes, uploadsRes] = await Promise.all([
+      supabase.from('bio_forms').select('student_id').eq('completed', true),
+      supabase.from('instrumental_uploads').select('student_id').eq('type', 'ficha_biografica'),
+    ]);
+
+    const completedIds = new Set((bioFormsRes.data ?? []).map((row) => row.student_id));
+    const syncedIds = new Set(
+      (uploadsRes.data ?? [])
+        .map((row) => row.student_id)
+        .filter((studentId): studentId is string => Boolean(studentId))
+    );
+
+    const missingIds = Array.from(completedIds).filter((studentId) => !syncedIds.has(studentId));
+    if (missingIds.length === 0) return;
+
+    const payload = missingIds.map((studentId) => ({
+      student_id: studentId,
+      status: 'pending',
+      requested_by: user.id,
+      synced_by: null,
+      last_error: null,
+      synced_at: null,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase
+      .from('bio_form_sync_queue')
+      .upsert(payload, { onConflict: 'student_id' });
+
+    if (error) {
+      console.error('[Instrumentais Admin] Erro ao atualizar fila de sincronização:', error.message);
+    }
+  }
+
+  async function handleSyncCompletedBioForms() {
+    if (!user?.id || !isAdminSme || syncingBioForms) return;
+
+    setSyncingBioForms(true);
+
+    try {
+      await refreshBioFormSyncQueue();
+
+      const { data: queueRows, error: queueError } = await supabase
+        .from('bio_form_sync_queue')
+        .select('student_id, status, last_error')
+        .in('status', ['pending', 'error'])
+        .order('updated_at', { ascending: true });
+
+      if (queueError) {
+        alert(`Não foi possível carregar a fila de sincronização: ${queueError.message}`);
+        return;
+      }
+
+      const queue = (queueRows as SyncQueueEntry[] | null) ?? [];
+      if (queue.length === 0) {
+        alert('Não há fichas concluídas pendentes de sincronização.');
+        await fetchSyncQueueCount();
+        return;
+      }
+
+      const studentIds = queue.map((item) => item.student_id);
+      const [studentsRes, bioFormsRes] = await Promise.all([
+        supabase
+          .from('students')
+          .select('id, name, enrollment_code, school_id, classroom_id, classrooms(year_grade, label, dt_user_id, schools(name))')
+          .in('id', studentIds),
+        supabase
+          .from('bio_forms')
+          .select('student_id, completed, sections_json')
+          .in('student_id', studentIds)
+          .eq('completed', true),
+      ]);
+
+      const studentsById = new Map(
+        ((studentsRes.data as unknown as BioFormInstrumentalStudent[]) ?? []).map((student) => [student.id, student])
+      );
+      const bioFormsByStudentId = new Map(
+        ((bioFormsRes.data as BioFormRow[] | null) ?? []).map((row) => [row.student_id, row])
+      );
+
+      const dtUserIds = Array.from(
+        new Set(
+          ((studentsRes.data as any[]) ?? [])
+            .map((student) => student.classrooms?.dt_user_id)
+            .filter((dtUserId): dtUserId is string => Boolean(dtUserId))
+        )
+      );
+
+      const dtProfilesRes = dtUserIds.length > 0
+        ? await supabase.from('profiles').select('user_id, full_name').in('user_id', dtUserIds)
+        : { data: [] as Profile[] };
+
+      const dtNames = new Map(
+        (((dtProfilesRes.data as Profile[] | null) ?? [])).map((profileRow) => [profileRow.user_id, profileRow.full_name])
+      );
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const item of queue) {
+        const student = studentsById.get(item.student_id);
+        const bioForm = bioFormsByStudentId.get(item.student_id);
+        const dtUserId = student?.classrooms?.dt_user_id ?? null;
+
+        if (!student || !bioForm) {
+          errorCount += 1;
+          await supabase
+            .from('bio_form_sync_queue')
+            .update({
+              status: 'error',
+              last_error: 'Dados da ficha ou do aluno não encontrados para sincronização.',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('student_id', item.student_id);
+          continue;
+        }
+
+        if (!dtUserId) {
+          errorCount += 1;
+          await supabase
+            .from('bio_form_sync_queue')
+            .update({
+              status: 'error',
+              last_error: 'A turma do aluno não possui DT vinculado para registrar o instrumental.',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('student_id', item.student_id);
+          continue;
+        }
+
+        try {
+          await syncBioFormInstrumental({
+            actorUserId: user.id,
+            actorUserName: profile?.full_name ?? 'Administrador SME',
+            uploadedByUserId: dtUserId,
+            dtName: dtNames.get(dtUserId) ?? 'Professor Diretor de Turma',
+            student,
+            sections: bioForm.sections_json ?? {},
+            completed: true,
+          });
+
+          successCount += 1;
+          await supabase
+            .from('bio_form_sync_queue')
+            .update({
+              status: 'synced',
+              last_error: null,
+              synced_by: user.id,
+              synced_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('student_id', item.student_id);
+        } catch (error) {
+          errorCount += 1;
+          await supabase
+            .from('bio_form_sync_queue')
+            .update({
+              status: 'error',
+              last_error: error instanceof Error ? error.message : 'Erro desconhecido na sincronização.',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('student_id', item.student_id);
+        }
+      }
+
+      await logAudit('UPDATE', 'bio_form_sync_queue', 'batch', {
+        action: 'sync_completed_bio_forms',
+        success_count: successCount,
+        error_count: errorCount,
+      });
+
+      await Promise.all([fetchUploads(), fetchSyncQueueCount()]);
+      alert(`Sincronização concluída. ${successCount} ficha(s) sincronizada(s) e ${errorCount} com pendência.`);
+    } finally {
+      setSyncingBioForms(false);
+    }
   }
 
   async function handleToggleReviewMode() {
@@ -462,7 +685,8 @@ export default function AdminInstrumentaisPage() {
         </div>
 
         {isAdminSme && (
-          <Card className="w-full max-w-xl border-emerald-200 bg-emerald-50/50">
+          <div className="flex w-full max-w-5xl flex-col gap-3 lg:flex-row">
+          <Card className="w-full border-emerald-200 bg-emerald-50/50">
             <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-emerald-900">Modo de revisão</p>
@@ -494,6 +718,29 @@ export default function AdminInstrumentaisPage() {
               </Button>
             </CardContent>
           </Card>
+          <Card className="w-full border-sky-200 bg-sky-50/50">
+            <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-sky-900">Sincronização de fichas concluídas</p>
+                <p className="text-sm text-sky-900/80">
+                  {syncQueueCount > 0
+                    ? `${syncQueueCount} ficha(s) concluída(s) ainda sem instrumental em PDF.`
+                    : 'Nenhuma pendência de fichas concluídas sem instrumental.'}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-w-60 justify-center gap-2"
+                onClick={handleSyncCompletedBioForms}
+                disabled={syncingBioForms}
+              >
+                <RefreshCw className={`h-4 w-4 ${syncingBioForms ? 'animate-spin' : ''}`} />
+                {syncingBioForms ? 'Sincronizando...' : 'Sincronizar fichas concluídas'}
+              </Button>
+            </CardContent>
+          </Card>
+          </div>
         )}
       </div>
 

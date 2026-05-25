@@ -369,6 +369,38 @@ export interface Database {
           updated_at?: string;
         };
       };
+      bio_form_sync_queue: {
+        Row: {
+          student_id: string;
+          status: string;
+          requested_by: string | null;
+          synced_by: string | null;
+          last_error: string | null;
+          synced_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          student_id: string;
+          status?: string;
+          requested_by?: string | null;
+          synced_by?: string | null;
+          last_error?: string | null;
+          synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          student_id?: string;
+          status?: string;
+          requested_by?: string | null;
+          synced_by?: string | null;
+          last_error?: string | null;
+          synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       notifications: {
         Row: {
           id: string;
