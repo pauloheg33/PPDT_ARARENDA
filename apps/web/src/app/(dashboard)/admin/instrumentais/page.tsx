@@ -7,8 +7,12 @@ import { logAudit } from '@/lib/audit';
 import {
   syncBioFormInstrumental,
   type BioFormInstrumentalStudent,
-  type BioFormSections,
 } from '@/lib/bio-form-instrumental';
+import {
+  getBioFormStatus,
+  mergeBioFormSections,
+  type BioFormSections,
+} from '@/lib/bio-form-status';
 import { InstrumentalViewerDialog } from '@/components/instrumentais/instrumental-viewer-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -100,16 +104,14 @@ interface Profile {
   full_name: string;
 }
 
-interface SyncQueueEntry {
-  student_id: string;
-  status: 'pending' | 'synced' | 'error';
-  last_error: string | null;
-}
-
 interface BioFormRow {
   student_id: string;
   completed: boolean;
   sections_json: BioFormSections;
+}
+
+interface BioFormSyncCandidate {
+  student_id: string;
 }
 
 interface Modelo {
@@ -211,56 +213,101 @@ export default function AdminInstrumentaisPage() {
     setLoadingReviewMode(false);
   }
 
-  async function fetchSyncQueueCount() {
-    if (!isAdminSme) return;
-
-    const { count, error } = await supabase
-      .from('bio_form_sync_queue')
-      .select('student_id', { count: 'exact', head: true })
-      .in('status', ['pending', 'error']);
-
-    if (error) {
-      console.error('[Instrumentais Admin] Erro ao carregar fila de sincronização:', error.message);
-      return;
+  async function collectBioFormSyncCandidates() {
+    if (!user?.id) {
+      return { candidates: [] as BioFormSyncCandidate[], reconciledCount: 0 };
     }
 
-    setSyncQueueCount(count ?? 0);
-  }
-
-  async function refreshBioFormSyncQueue() {
-    if (!user?.id) return;
-
     const [bioFormsRes, uploadsRes] = await Promise.all([
-      supabase.from('bio_forms').select('student_id').eq('completed', true),
+      supabase.from('bio_forms').select('student_id, completed, sections_json'),
       supabase.from('instrumental_uploads').select('student_id').eq('type', 'ficha_biografica'),
     ]);
 
-    const completedIds = new Set((bioFormsRes.data ?? []).map((row) => row.student_id));
+    if (bioFormsRes.error) {
+      throw new Error(`Não foi possível carregar as fichas biográficas: ${bioFormsRes.error.message}`);
+    }
+
+    if (uploadsRes.error) {
+      throw new Error(`Não foi possível carregar os instrumentais já sincronizados: ${uploadsRes.error.message}`);
+    }
+
+    const now = new Date().toISOString();
+    const bioForms = (bioFormsRes.data as BioFormRow[] | null) ?? [];
+    const rowsToReconcile = bioForms.filter((row) => {
+      const mergedSections = mergeBioFormSections(row.sections_json ?? {});
+      return getBioFormStatus(mergedSections).isComplete !== Boolean(row.completed);
+    });
+
+    if (rowsToReconcile.length > 0) {
+      await Promise.all(
+        rowsToReconcile.map(async (row) => {
+          const mergedSections = mergeBioFormSections(row.sections_json ?? {});
+          const derivedComplete = getBioFormStatus(mergedSections).isComplete;
+          const { error } = await supabase
+            .from('bio_forms')
+            .update({
+              completed: derivedComplete,
+              updated_at: now,
+            })
+            .eq('student_id', row.student_id);
+
+          if (error) {
+            throw new Error(`Não foi possível reconciliar a ficha do aluno ${row.student_id}: ${error.message}`);
+          }
+        })
+      );
+    }
+
+    const completedIds = new Set(
+      bioForms
+        .filter((row) => getBioFormStatus(mergeBioFormSections(row.sections_json ?? {})).isComplete)
+        .map((row) => row.student_id)
+    );
     const syncedIds = new Set(
-      (uploadsRes.data ?? [])
+      ((uploadsRes.data ?? []) as Array<{ student_id: string | null }>)
         .map((row) => row.student_id)
         .filter((studentId): studentId is string => Boolean(studentId))
     );
 
     const missingIds = Array.from(completedIds).filter((studentId) => !syncedIds.has(studentId));
-    if (missingIds.length === 0) return;
 
-    const payload = missingIds.map((studentId) => ({
-      student_id: studentId,
-      status: 'pending',
-      requested_by: user.id,
-      synced_by: null,
-      last_error: null,
-      synced_at: null,
-      updated_at: new Date().toISOString(),
-    }));
+    if (missingIds.length > 0) {
+      const payload = missingIds.map((studentId) => ({
+        student_id: studentId,
+        status: 'pending',
+        requested_by: user.id,
+        synced_by: null,
+        last_error: null,
+        synced_at: null,
+        updated_at: now,
+      }));
 
-    const { error } = await supabase
-      .from('bio_form_sync_queue')
-      .upsert(payload, { onConflict: 'student_id' });
+      const { error } = await supabase
+        .from('bio_form_sync_queue')
+        .upsert(payload, { onConflict: 'student_id' });
 
-    if (error) {
-      console.error('[Instrumentais Admin] Erro ao atualizar fila de sincronização:', error.message);
+      if (error) {
+        throw new Error(`Não foi possível atualizar a fila de sincronização: ${error.message}`);
+      }
+    }
+
+    return {
+      candidates: missingIds.map((studentId) => ({ student_id: studentId })),
+      reconciledCount: rowsToReconcile.length,
+    };
+  }
+
+  async function fetchSyncQueueCount() {
+    if (!isAdminSme) return;
+
+    try {
+      const { candidates } = await collectBioFormSyncCandidates();
+      setSyncQueueCount(candidates.length);
+    } catch (error) {
+      console.error(
+        '[Instrumentais Admin] Erro ao calcular pendências da sincronização:',
+        error instanceof Error ? error.message : error
+      );
     }
   }
 
@@ -270,22 +317,15 @@ export default function AdminInstrumentaisPage() {
     setSyncingBioForms(true);
 
     try {
-      await refreshBioFormSyncQueue();
+      const { candidates, reconciledCount } = await collectBioFormSyncCandidates();
+      const queue = candidates;
 
-      const { data: queueRows, error: queueError } = await supabase
-        .from('bio_form_sync_queue')
-        .select('student_id, status, last_error')
-        .in('status', ['pending', 'error'])
-        .order('updated_at', { ascending: true });
-
-      if (queueError) {
-        alert(`Não foi possível carregar a fila de sincronização: ${queueError.message}`);
-        return;
-      }
-
-      const queue = (queueRows as SyncQueueEntry[] | null) ?? [];
       if (queue.length === 0) {
-        alert('Não há fichas concluídas pendentes de sincronização.');
+        alert(
+          reconciledCount > 0
+            ? `Nenhuma ficha concluída ficou pendente de sincronização. ${reconciledCount} status de ficha foram reconciliados.`
+            : 'Não há fichas concluídas pendentes de sincronização.'
+        );
         await fetchSyncQueueCount();
         return;
       }
@@ -299,8 +339,7 @@ export default function AdminInstrumentaisPage() {
         supabase
           .from('bio_forms')
           .select('student_id, completed, sections_json')
-          .in('student_id', studentIds)
-          .eq('completed', true),
+          .in('student_id', studentIds),
       ]);
 
       const studentsById = new Map(
@@ -333,14 +372,19 @@ export default function AdminInstrumentaisPage() {
         const student = studentsById.get(item.student_id);
         const bioForm = bioFormsByStudentId.get(item.student_id);
         const dtUserId = student?.classrooms?.dt_user_id ?? null;
+        const derivedComplete = bioForm
+          ? getBioFormStatus(mergeBioFormSections(bioForm.sections_json ?? {})).isComplete
+          : false;
 
-        if (!student || !bioForm) {
+        if (!student || !bioForm || !derivedComplete) {
           errorCount += 1;
           await supabase
             .from('bio_form_sync_queue')
             .update({
               status: 'error',
-              last_error: 'Dados da ficha ou do aluno não encontrados para sincronização.',
+              last_error: !student || !bioForm
+                ? 'Dados da ficha ou do aluno não encontrados para sincronização.'
+                : 'A ficha não está completa o suficiente para sincronização automática.',
               updated_at: new Date().toISOString(),
             })
             .eq('student_id', item.student_id);
@@ -367,8 +411,8 @@ export default function AdminInstrumentaisPage() {
             uploadedByUserId: dtUserId,
             dtName: dtNames.get(dtUserId) ?? 'Professor Diretor de Turma',
             student,
-            sections: bioForm.sections_json ?? {},
-            completed: true,
+            sections: mergeBioFormSections(bioForm.sections_json ?? {}),
+            completed: derivedComplete,
           });
 
           successCount += 1;
@@ -397,12 +441,15 @@ export default function AdminInstrumentaisPage() {
 
       await logAudit('UPDATE', 'bio_form_sync_queue', 'batch', {
         action: 'sync_completed_bio_forms',
+        reconciled_count: reconciledCount,
         success_count: successCount,
         error_count: errorCount,
       });
 
       await Promise.all([fetchUploads(), fetchSyncQueueCount()]);
-      alert(`Sincronização concluída. ${successCount} ficha(s) sincronizada(s) e ${errorCount} com pendência.`);
+      alert(
+        `Sincronização concluída. ${successCount} ficha(s) sincronizada(s), ${errorCount} com pendência e ${reconciledCount} status de ficha reconciliados.`
+      );
     } finally {
       setSyncingBioForms(false);
     }

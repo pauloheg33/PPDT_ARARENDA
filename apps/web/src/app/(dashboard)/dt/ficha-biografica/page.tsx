@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/use-auth';
@@ -16,106 +16,16 @@ import { Save, Check, ArrowLeft, FileDown } from 'lucide-react';
 import {
   syncBioFormInstrumental,
   triggerBrowserDownload,
-  type BioFormSections,
   type BioFormInstrumentalStudent,
 } from '@/lib/bio-form-instrumental';
-
-
-const SECTIONS = [
-  { id: 'familia', label: 'Composição Familiar' },
-  { id: 'vida_escolar', label: 'Vida Escolar' },
-  { id: 'tempo_livre', label: 'Tempo Livre' },
-  { id: 'saude', label: 'Saúde / Alimentação' },
-  { id: 'complementar', label: 'Atividades Complementares' },
-];
-
-const defaultSections: Record<string, Record<string, string>> = {
-  familia: {
-    com_quem_mora: '',
-    numero_irmaos: '',
-    profissao_pai: '',
-    profissao_mae: '',
-    renda_familiar: '',
-    tipo_moradia: '',
-    observacoes_familia: '',
-  },
-  vida_escolar: {
-    disciplina_preferida: '',
-    disciplina_dificuldade: '',
-    apoio_pedagogico: '',
-    deslocamento: '',
-    profissao_desejada: '',
-    repetencia: '',
-    motivo_repetencia: '',
-    opiniao_escola: '',
-  },
-  tempo_livre: {
-    atividades_livres: '',
-    usa_internet: '',
-    horas_tela: '',
-    pratica_esporte: '',
-    qual_esporte: '',
-    participa_grupo: '',
-    qual_grupo: '',
-  },
-  saude: {
-    problemas_saude: '',
-    medicamento_continuo: '',
-    qual_medicamento: '',
-    alimentacao_escola: '',
-    alergia_alimentar: '',
-    qual_alergia: '',
-    plano_saude: '',
-  },
-  complementar: {
-    participa_programa_social: '',
-    qual_programa: '',
-    trabalha: '',
-    onde_trabalha: '',
-    carga_horaria_trabalho: '',
-    expectativa_futuro: '',
-    observacoes_gerais: '',
-  },
-};
-
-const fieldLabels: Record<string, string> = {
-  com_quem_mora: 'Com quem mora?',
-  numero_irmaos: 'Número de irmãos',
-  profissao_pai: 'Profissão do pai',
-  profissao_mae: 'Profissão da mãe',
-  renda_familiar: 'Renda familiar',
-  tipo_moradia: 'Tipo de moradia',
-  observacoes_familia: 'Observações',
-  disciplina_preferida: 'Disciplina preferida',
-  disciplina_dificuldade: 'Disciplina com dificuldade',
-  apoio_pedagogico: 'Recebe apoio pedagógico?',
-  deslocamento: 'Como se desloca até a escola?',
-  profissao_desejada: 'Profissão desejada',
-  repetencia: 'Já repetiu de ano?',
-  motivo_repetencia: 'Motivo da repetência',
-  opiniao_escola: 'O que acha da escola?',
-  atividades_livres: 'Atividades nos tempos livres',
-  usa_internet: 'Usa internet?',
-  horas_tela: 'Horas de tela por dia',
-  pratica_esporte: 'Pratica esporte?',
-  qual_esporte: 'Qual esporte?',
-  participa_grupo: 'Participa de algum grupo?',
-  qual_grupo: 'Qual grupo?',
-  problemas_saude: 'Problemas de saúde',
-  medicamento_continuo: 'Usa medicamento contínuo?',
-  qual_medicamento: 'Qual medicamento?',
-  alimentacao_escola: 'Se alimenta na escola?',
-  alergia_alimentar: 'Possui alergia alimentar?',
-  qual_alergia: 'Qual alergia?',
-  plano_saude: 'Possui plano de saúde?',
-  participa_programa_social: 'Participa de programa social?',
-  qual_programa: 'Qual programa?',
-  trabalha: 'Trabalha?',
-  onde_trabalha: 'Onde trabalha?',
-  carga_horaria_trabalho: 'Carga horária de trabalho',
-  expectativa_futuro: 'Expectativa para o futuro',
-  observacoes_gerais: 'Observações gerais',
-};
+import {
+  BIO_FORM_FIELD_LABELS,
+  BIO_FORM_SECTIONS,
+  cloneBioFormSections,
+  getBioFormStatus,
+  mergeBioFormSections,
+  type BioFormSections,
+} from '@/lib/bio-form-status';
 
 interface StudentDetails extends BioFormInstrumentalStudent {
   id: string;
@@ -132,27 +42,6 @@ interface StudentDetails extends BioFormInstrumentalStudent {
   } | null;
 }
 
-function cloneDefaultSections() {
-  return JSON.parse(JSON.stringify(defaultSections)) as Record<string, Record<string, string>>;
-}
-
-function slugifyFilePart(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .toUpperCase();
-}
-
-function fileDateStamp(date = new Date()) {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('');
-}
-
 function FichaBiograficaPageContent() {
   const searchParams = useSearchParams();
   const turmaId = searchParams.get('turmaId') || '';
@@ -162,13 +51,17 @@ function FichaBiograficaPageContent() {
 
   const [student, setStudent] = useState<StudentDetails | null>(null);
   const [sections, setSections] = useState<BioFormSections>(
-    cloneDefaultSections()
+    cloneBioFormSections()
   );
-  const [completed, setCompleted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string | null>(null);
+  const [lastSavedCompleted, setLastSavedCompleted] = useState<boolean | null>(null);
+
+  const bioStatus = useMemo(() => getBioFormStatus(sections), [sections]);
+  const sectionsSnapshot = useMemo(() => JSON.stringify(sections), [sections]);
 
   useEffect(() => {
     if (!alunoId) return;
@@ -183,20 +76,12 @@ function FichaBiograficaPageContent() {
       ]);
 
       setStudent((studentRes.data as unknown as StudentDetails) ?? null);
-      if (bioRes.data?.sections_json && Object.keys(bioRes.data.sections_json).length > 0) {
-        // Merge with defaults to ensure all fields exist
-        const loaded = bioRes.data.sections_json as Record<string, Record<string, string>>;
-        const merged = cloneDefaultSections();
-        for (const [sectionKey, sectionFields] of Object.entries(loaded)) {
-          if (merged[sectionKey]) {
-            for (const [field, value] of Object.entries(sectionFields)) {
-              merged[sectionKey][field] = value;
-            }
-          }
-        }
-        setSections(merged);
-      }
-      setCompleted(bioRes.data?.completed ?? false);
+      const mergedSections = mergeBioFormSections(
+        (bioRes.data?.sections_json as Record<string, Record<string, string>> | undefined) ?? null
+      );
+      setSections(mergedSections);
+      setLastSavedSnapshot(JSON.stringify(mergedSections));
+      setLastSavedCompleted(Boolean(bioRes.data?.completed));
       setLoading(false);
     }
     load();
@@ -212,9 +97,17 @@ function FichaBiograficaPageContent() {
     }));
   }
 
-  async function saveBioForm(markComplete = false) {
+  async function saveBioForm() {
     setSaving(true);
-    const isComplete = markComplete || completed;
+    const isComplete = getBioFormStatus(sections).isComplete;
+
+    if (
+      lastSavedSnapshot === sectionsSnapshot &&
+      lastSavedCompleted === isComplete
+    ) {
+      setSaving(false);
+      return { error: null, isComplete, skipped: true };
+    }
 
     const { error } = await supabase
       .from('bio_forms')
@@ -226,8 +119,9 @@ function FichaBiograficaPageContent() {
       });
 
     if (!error) {
-      setCompleted(isComplete);
       setLastSaved(new Date());
+      setLastSavedSnapshot(sectionsSnapshot);
+      setLastSavedCompleted(isComplete);
       await logAudit('UPDATE', 'bio_forms', alunoId, {
         completed: isComplete,
         updated_by: user?.id,
@@ -235,11 +129,11 @@ function FichaBiograficaPageContent() {
     }
     setSaving(false);
 
-    return { error, isComplete };
+    return { error, isComplete, skipped: false };
   }
 
-  async function handleSave(markComplete = false) {
-    await saveBioForm(markComplete);
+  async function handleSave() {
+    await saveBioForm();
   }
 
   async function persistGeneratedPdf() {
@@ -248,7 +142,7 @@ function FichaBiograficaPageContent() {
     setGeneratingPdf(true);
 
     try {
-      const saveResult = await saveBioForm(true);
+      const saveResult = await saveBioForm();
       if (saveResult.error) {
         alert(`Não foi possível salvar a ficha antes de gerar o PDF: ${saveResult.error.message}`);
         return;
@@ -281,20 +175,12 @@ function FichaBiograficaPageContent() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (!loading && student) {
-        handleSave(false);
+        handleSave();
       }
     }, 30000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections, loading]);
-
-  function getSectionCompleteness(sectionId: string): number {
-    const fields = sections[sectionId] ?? {};
-    const total = Object.keys(fields).length;
-    if (total === 0) return 0;
-    const filled = Object.values(fields).filter((v) => v.trim() !== '').length;
-    return Math.round((filled / total) * 100);
-  }
+  }, [sectionsSnapshot, loading, student]);
 
   if (!turmaId || !alunoId) {
     return <div className="text-red-500">Parâmetros turmaId e alunoId são obrigatórios na URL.</div>;
@@ -331,31 +217,31 @@ function FichaBiograficaPageContent() {
               Salvo às {lastSaved.toLocaleTimeString('pt-BR')}
             </span>
           )}
-          <Badge variant={completed ? 'success' : 'warning'}>
-            {completed ? 'Completa' : 'Pendente'}
+          <Badge variant={bioStatus.isComplete ? 'success' : 'warning'}>
+            {bioStatus.isComplete ? 'Completa' : 'Pendente'}
           </Badge>
         </div>
       </div>
 
       <Tabs defaultValue="familia">
         <TabsList className="flex flex-wrap h-auto gap-1">
-          {SECTIONS.map((s) => (
+          {BIO_FORM_SECTIONS.map((s) => (
             <TabsTrigger key={s.id} value={s.id} className="relative">
               {s.label}
               <span
                 className={`ml-2 text-[10px] ${
-                  getSectionCompleteness(s.id) === 100
+                  bioStatus.sectionCompletion[s.id] === 100
                     ? 'text-green-600'
                     : 'text-muted-foreground'
                 }`}
               >
-                {getSectionCompleteness(s.id)}%
+                {bioStatus.sectionCompletion[s.id]}%
               </span>
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {SECTIONS.map((section) => (
+        {BIO_FORM_SECTIONS.map((section) => (
           <TabsContent key={section.id} value={section.id}>
             <Card>
               <CardHeader>
@@ -363,7 +249,7 @@ function FichaBiograficaPageContent() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {Object.entries(sections[section.id] ?? {}).map(([field, value]) => {
-                  const label = fieldLabels[field] ?? field;
+                  const label = BIO_FORM_FIELD_LABELS[field] ?? field;
                   const isTextArea = field.includes('observa') || field.includes('opiniao') || field.includes('expectativa');
 
                   return (
@@ -395,16 +281,14 @@ function FichaBiograficaPageContent() {
           <FileDown className="mr-2 h-4 w-4" />
           {generatingPdf ? 'Gerando PDF...' : 'Gerar PDF da Ficha'}
         </Button>
-        <Button variant="outline" onClick={() => handleSave(false)} disabled={saving}>
+        <Button variant="outline" onClick={() => handleSave()} disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
-          {saving ? 'Salvando...' : 'Salvar Rascunho'}
+          {saving ? 'Salvando...' : 'Salvar Ficha'}
         </Button>
-        {!completed && (
-          <Button onClick={handleCompleteAndSync} disabled={saving || generatingPdf}>
-            <Check className="mr-2 h-4 w-4" />
-            {generatingPdf ? 'Concluindo...' : 'Marcar como Completa'}
-          </Button>
-        )}
+        <Button onClick={handleCompleteAndSync} disabled={saving || generatingPdf}>
+          <Check className="mr-2 h-4 w-4" />
+          {generatingPdf ? 'Sincronizando...' : 'Salvar e Sincronizar PDF'}
+        </Button>
       </div>
     </div>
   );

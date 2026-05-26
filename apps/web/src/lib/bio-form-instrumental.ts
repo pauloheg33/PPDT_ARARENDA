@@ -3,55 +3,11 @@
 import jsPDF from 'jspdf';
 import { supabase } from '@/lib/supabase';
 import { logAudit } from '@/lib/audit';
-
-const SECTIONS = [
-  { id: 'familia', label: 'Composição Familiar' },
-  { id: 'vida_escolar', label: 'Vida Escolar' },
-  { id: 'tempo_livre', label: 'Tempo Livre' },
-  { id: 'saude', label: 'Saúde / Alimentação' },
-  { id: 'complementar', label: 'Atividades Complementares' },
-];
-
-const FIELD_LABELS: Record<string, string> = {
-  com_quem_mora: 'Com quem mora?',
-  numero_irmaos: 'Número de irmãos',
-  profissao_pai: 'Profissão do pai',
-  profissao_mae: 'Profissão da mãe',
-  renda_familiar: 'Renda familiar',
-  tipo_moradia: 'Tipo de moradia',
-  observacoes_familia: 'Observações',
-  disciplina_preferida: 'Disciplina preferida',
-  disciplina_dificuldade: 'Disciplina com dificuldade',
-  apoio_pedagogico: 'Recebe apoio pedagógico?',
-  deslocamento: 'Como se desloca até a escola?',
-  profissao_desejada: 'Profissão desejada',
-  repetencia: 'Já repetiu de ano?',
-  motivo_repetencia: 'Motivo da repetência',
-  opiniao_escola: 'O que acha da escola?',
-  atividades_livres: 'Atividades nos tempos livres',
-  usa_internet: 'Usa internet?',
-  horas_tela: 'Horas de tela por dia',
-  pratica_esporte: 'Pratica esporte?',
-  qual_esporte: 'Qual esporte?',
-  participa_grupo: 'Participa de algum grupo?',
-  qual_grupo: 'Qual grupo?',
-  problemas_saude: 'Problemas de saúde',
-  medicamento_continuo: 'Usa medicamento contínuo?',
-  qual_medicamento: 'Qual medicamento?',
-  alimentacao_escola: 'Se alimenta na escola?',
-  alergia_alimentar: 'Possui alergia alimentar?',
-  qual_alergia: 'Qual alergia?',
-  plano_saude: 'Possui plano de saúde?',
-  participa_programa_social: 'Participa de programa social?',
-  qual_programa: 'Qual programa?',
-  trabalha: 'Trabalha?',
-  onde_trabalha: 'Onde trabalha?',
-  carga_horaria_trabalho: 'Carga horária de trabalho',
-  expectativa_futuro: 'Expectativa para o futuro',
-  observacoes_gerais: 'Observações gerais',
-};
-
-export type BioFormSections = Record<string, Record<string, string>>;
+import {
+  BIO_FORM_FIELD_LABELS,
+  BIO_FORM_SECTIONS,
+  type BioFormSections,
+} from '@/lib/bio-form-status';
 
 export interface BioFormInstrumentalStudent {
   id: string;
@@ -370,10 +326,10 @@ export async function buildBioFormPdf(params: {
   doc.setTextColor(0, 0, 0);
   y += 10;
 
-  for (const section of SECTIONS) {
+  for (const section of BIO_FORM_SECTIONS) {
     addSectionTitle(section.label);
     const entries = Object.entries(sections[section.id] ?? {}).map(([field, rawValue]) => ({
-      label: FIELD_LABELS[field] ?? field,
+      label: BIO_FORM_FIELD_LABELS[field] ?? field,
       value: rawValue,
     }));
     const midpoint = Math.ceil(entries.length / 2);
