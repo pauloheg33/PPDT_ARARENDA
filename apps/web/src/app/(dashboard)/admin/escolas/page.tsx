@@ -131,9 +131,9 @@ export default function EscolasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Escolas</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Escolas</h1>
           <p className="text-muted-foreground">
             {isCoord ? 'Consulta dos dados da sua escola' : 'Gerenciamento das escolas da rede municipal'}
           </p>
@@ -151,8 +151,8 @@ export default function EscolasPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[220px]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+        <div className="min-w-0 flex-1">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -172,6 +172,32 @@ export default function EscolasPage() {
           ) : filteredSchools.length === 0 ? (
             <p className="text-muted-foreground">Nenhuma escola cadastrada.</p>
           ) : (
+            <>
+            <div className="space-y-3 md:hidden">
+              {filteredSchools.map((school) => (
+                <div key={school.id} className="rounded-lg border p-3">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-medium">{school.name}</p>
+                      <p className="text-xs text-muted-foreground">INEP: {school.inep || '—'}</p>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEdit(school)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(school)}>
+                          <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                          Excluir
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -205,6 +231,8 @@ export default function EscolasPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
           <p className="mt-4 text-sm text-muted-foreground">
             {filteredSchools.length} escola(s) encontrada(s)

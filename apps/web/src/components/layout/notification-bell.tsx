@@ -103,7 +103,7 @@ export function NotificationBell() {
       <Button
         variant="ghost"
         size="icon"
-        className="relative"
+        className="relative h-10 w-10 rounded-full md:h-9 md:w-9"
         onClick={() => handleOpenChange(true)}
         title="Notificações"
       >
@@ -117,8 +117,8 @@ export function NotificationBell() {
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden p-0">
-          <DialogHeader className="border-b px-6 py-4">
-            <div className="flex items-center justify-between gap-3">
+          <DialogHeader className="border-b px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 {selectedNotification && (
                   <Button
@@ -134,7 +134,7 @@ export function NotificationBell() {
                   {selectedNotification ? 'Aviso completo' : 'Notificações'}
                 </DialogTitle>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">{notifications.length} total</Badge>
                 {unreadNotifications > 0 && (
                   <Badge variant="secondary">{unreadNotifications} nova(s)</Badge>
@@ -143,11 +143,11 @@ export function NotificationBell() {
             </div>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             {loading ? (
               <p className="text-sm text-muted-foreground">Carregando notificações...</p>
             ) : selectedNotification ? (
-              <div className="rounded-lg border bg-background p-5">
+              <div className="rounded-lg border bg-background p-4 sm:p-5">
                 <div className="mb-3 flex items-start gap-2">
                   {selectedNotification.type === 'instrumental_review' ? (
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
@@ -155,7 +155,7 @@ export function NotificationBell() {
                     <Megaphone className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="text-lg font-semibold">{selectedNotification.title}</p>
+                    <p className="text-base font-semibold sm:text-lg">{selectedNotification.title}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span>{formatTimestamp(selectedNotification.created_at)}</span>
                       {selectedNotification.expires_at && (
@@ -178,7 +178,7 @@ export function NotificationBell() {
                     key={notification.id}
                     type="button"
                     onClick={() => handleNotificationClick(notification)}
-                    className={`w-full rounded-lg border p-4 text-left transition-colors hover:bg-accent ${
+                    className={`w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent sm:p-4 ${
                       notification.read_at ? 'bg-background' : 'bg-primary/5 border-primary/30'
                     }`}
                   >

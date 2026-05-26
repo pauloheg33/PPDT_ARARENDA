@@ -652,31 +652,31 @@ export default function InstrumentaisPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Instrumentais do PPDT</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Instrumentais do PPDT</h1>
         <p className="text-muted-foreground">Registros, envios e modelos de documentos</p>
       </div>
 
       <Tabs defaultValue="biblioteca">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="registros" className="flex items-center gap-2">
+        <TabsList className="flex w-full flex-nowrap gap-1 overflow-x-auto md:grid md:grid-cols-3">
+          <TabsTrigger value="registros" className="flex min-w-fit items-center gap-2 md:min-w-0">
             <FileText className="h-4 w-4" /> Meus Registros
           </TabsTrigger>
-          <TabsTrigger value="enviar" className="flex items-center gap-2">
+          <TabsTrigger value="enviar" className="flex min-w-fit items-center gap-2 md:min-w-0">
             <Upload className="h-4 w-4" /> Enviar Instrumental
           </TabsTrigger>
-          <TabsTrigger value="biblioteca" className="flex items-center gap-2">
+          <TabsTrigger value="biblioteca" className="flex min-w-fit items-center gap-2 md:min-w-0">
             <Library className="h-4 w-4" /> Biblioteca de Modelos
           </TabsTrigger>
         </TabsList>
 
         {/* ====== ABA: MEUS REGISTROS ====== */}
         <TabsContent value="registros" className="space-y-4 pt-4">
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Select
               value={filterTipo || '__all'}
               onValueChange={(v) => setFilterTipo(v === '__all' ? '' : v)}
             >
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-full sm:w-52">
                 <SelectValue placeholder="Filtrar por tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -691,7 +691,7 @@ export default function InstrumentaisPage() {
               value={filterAluno || '__all'}
               onValueChange={(v) => setFilterAluno(v === '__all' ? '' : v)}
             >
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-full sm:w-52">
                 <SelectValue placeholder="Filtrar por aluno" />
               </SelectTrigger>
               <SelectContent>
@@ -716,6 +716,50 @@ export default function InstrumentaisPage() {
               ) : filteredUploads.length === 0 ? (
                 <p className="text-muted-foreground text-sm">Nenhum instrumental encontrado.</p>
               ) : (
+                <>
+                <div className="space-y-3 md:hidden">
+                  {filteredUploads.map((u) => (
+                    <div key={u.id} className="rounded-lg border p-3">
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium break-words">
+                            {u.student?.name ?? 'Sem aluno específico'}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="outline">{TIPO_LABELS[u.type]}</Badge>
+                            <span>{new Date(u.reference_date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground break-all">
+                          {u.original_filename ?? '—'}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleOpenPdf(u)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Ver
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(u)}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Baixar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => { setReplaceTarget(u); setReplaceFile(null); }}
+                          >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Substituir
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteUpload(u)}>
+                            <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                            Excluir
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -769,6 +813,8 @@ export default function InstrumentaisPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -778,7 +824,7 @@ export default function InstrumentaisPage() {
         <TabsContent value="enviar" className="pt-4">
           <Card>
             <CardContent className="pt-6">
-              <form onSubmit={handleSubmitUpload} className="space-y-5 max-w-lg">
+              <form onSubmit={handleSubmitUpload} className="max-w-lg space-y-5">
                 <div className="space-y-2">
                   <Label>Estudante <span className="text-muted-foreground">(opcional)</span></Label>
                   <Select
@@ -893,7 +939,7 @@ export default function InstrumentaisPage() {
             <h2 className="text-lg font-semibold">Gerado Automaticamente</h2>
             <Card>
               <CardContent className="pt-4 pb-4">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-medium">Ata de Assembleia dos Pais e Responsáveis</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -907,7 +953,7 @@ export default function InstrumentaisPage() {
                     size="sm"
                     onClick={gerarAtaAssembleia}
                     disabled={generating || !classroomInfo || students.length === 0}
-                    className="shrink-0"
+                    className="w-full shrink-0 sm:w-auto"
                   >
                     <FileDown className="h-4 w-4 mr-1" />
                     {generating ? 'Gerando...' : 'Gerar PDF'}
@@ -936,6 +982,35 @@ export default function InstrumentaisPage() {
                   <h2 className="text-lg font-semibold">{CATEGORY_LABELS[cat]}</h2>
                   <Card>
                     <CardContent className="pt-4">
+                      <div className="space-y-3 md:hidden">
+                        {items.map((m) => (
+                          <div key={m.id} className="rounded-lg border p-3">
+                            <div className="space-y-3">
+                              <div>
+                                <p className="font-medium">{m.name}</p>
+                                {m.description && (
+                                  <p className="text-xs text-muted-foreground">{m.description}</p>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="secondary">
+                                  {m.file_type === 'word' ? 'Word' : m.file_type === 'pdf' ? 'PDF' : 'Arquivo'}
+                                </Badge>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full sm:w-auto"
+                                onClick={() => window.open(m.external_url, '_blank')}
+                              >
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Baixar
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="hidden md:block">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -972,6 +1047,7 @@ export default function InstrumentaisPage() {
                           ))}
                         </TableBody>
                       </Table>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>

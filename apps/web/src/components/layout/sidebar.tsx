@@ -134,7 +134,7 @@ export function Sidebar() {
     <>
       {/* Mobile toggle */}
       <button
-        className="fixed left-4 top-4 z-50 md:hidden rounded-md bg-primary p-2 text-primary-foreground"
+        className="fixed left-3 top-3 z-50 rounded-md bg-primary p-2 text-primary-foreground shadow-lg md:hidden"
         onClick={() => setOpen(!open)}
       >
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -151,34 +151,34 @@ export function Sidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 w-64 bg-card border-r transform transition-transform md:translate-x-0 md:static md:z-0',
+          'fixed inset-y-0 left-0 z-40 w-[17.5rem] border-r bg-card shadow-xl transform transition-transform md:w-64 md:translate-x-0 md:static md:z-0 md:shadow-none',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="p-4 border-b">
+          <div className="border-b p-4 pr-12 md:pr-4">
             <div className="flex items-center gap-3 mb-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/PPDT_ARARENDA/logo-blue.svg"
                 alt="PPDT Ararendá"
-                className="h-10 w-10 rounded"
+                className="h-10 w-10 shrink-0 rounded"
               />
-              <h1 className="text-lg font-bold text-primary">PPDT Ararendá</h1>
+              <h1 className="truncate text-lg font-bold text-primary">PPDT Ararendá</h1>
             </div>
             <p className="text-xs text-muted-foreground">Sistema Municipal DT</p>
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 space-y-1 overflow-y-auto p-4">
             {filteredItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors',
                   pathname.startsWith(item.href)
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -214,7 +214,7 @@ export function Sidebar() {
                   )}
                 >
                   <Lock className="h-4 w-4" />
-                  Liberar/Bloquear Ficha
+                  <span className="truncate">Liberar/Bloquear Ficha</span>
                 </Link>
                 <Link
                   href={`/dt/registro-fotografico?turmaId=${profile.classroom_id}`}
@@ -227,7 +227,7 @@ export function Sidebar() {
                   )}
                 >
                   <Camera className="h-4 w-4" />
-                  Registro Fotográfico
+                  <span className="truncate">Registro Fotográfico</span>
                 </Link>
                 <Link
                   href={`/dt/mapeamento-sala?turmaId=${profile.classroom_id}`}
@@ -240,7 +240,7 @@ export function Sidebar() {
                   )}
                 >
                   <Grid3X3 className="h-4 w-4" />
-                  Mapeamento de Sala
+                  <span className="truncate">Mapeamento de Sala</span>
                 </Link>
                 <Link
                   href={`/dt/relatorios?turmaId=${profile.classroom_id}`}
@@ -253,7 +253,7 @@ export function Sidebar() {
                   )}
                 >
                   <FileText className="h-4 w-4" />
-                  Relatórios
+                  <span className="truncate">Relatórios</span>
                 </Link>
                 <Link
                   href="/dt/instrumentais"
@@ -266,7 +266,7 @@ export function Sidebar() {
                   )}
                 >
                   <FolderOpen className="h-4 w-4" />
-                  Instrumentais
+                  <span className="truncate">Instrumentais</span>
                 </Link>
               </>
             )}

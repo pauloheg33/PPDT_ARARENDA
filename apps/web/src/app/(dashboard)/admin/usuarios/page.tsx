@@ -216,9 +216,9 @@ export default function UsuariosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Usuários</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Usuários</h1>
           <p className="text-muted-foreground">Gestão de acessos e papéis</p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
@@ -232,6 +232,39 @@ export default function UsuariosPage() {
           {loading ? (
             <p className="text-muted-foreground">Carregando...</p>
           ) : (
+            <>
+            <div className="space-y-3 md:hidden">
+              {profiles.map((p) => (
+                <div key={p.user_id} className="rounded-lg border p-3">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-medium">{p.full_name}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">
+                          {ROLE_LABELS[p.role as Role] ?? p.role}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p>Escola: {getSchoolName(p.school_id)}</p>
+                      <p>Turma: {getClassroomLabel(p.classroom_id)}</p>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(p)}
+                        disabled={p.user_id === myProfile?.user_id}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                        Excluir
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -280,6 +313,8 @@ export default function UsuariosPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>

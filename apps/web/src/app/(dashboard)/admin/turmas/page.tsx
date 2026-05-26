@@ -168,9 +168,9 @@ export default function TurmasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Turmas</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Turmas</h1>
           <p className="text-muted-foreground">
             {isCoord ? 'Consulta das turmas da sua escola' : 'Gerenciamento de turmas da rede'}
           </p>
@@ -188,8 +188,8 @@ export default function TurmasPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[220px]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+        <div className="min-w-0 flex-1">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -205,7 +205,7 @@ export default function TurmasPage() {
           onValueChange={setFilterSchool}
           disabled={isSchoolScoped}
         >
-          <SelectTrigger className="w-[240px]">
+          <SelectTrigger className="w-full sm:w-[240px]">
             <SelectValue placeholder="Filtrar por escola" />
           </SelectTrigger>
           <SelectContent>
@@ -226,6 +226,36 @@ export default function TurmasPage() {
           ) : filteredClassrooms.length === 0 ? (
             <p className="text-muted-foreground">Nenhuma turma cadastrada.</p>
           ) : (
+            <>
+            <div className="space-y-3 md:hidden">
+              {filteredClassrooms.map((c) => (
+                <div key={c.id} className="rounded-lg border p-3">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-medium">{(c as any).schools?.name ?? '—'}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>{c.year_grade}</span>
+                        <Badge variant="outline">{c.label}</Badge>
+                        <span>{c.shift}</span>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEdit(c)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(c)}>
+                          <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                          Excluir
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -261,6 +291,8 @@ export default function TurmasPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
           <p className="mt-4 text-sm text-muted-foreground">
             {filteredClassrooms.length} turma(s) encontrada(s)

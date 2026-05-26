@@ -233,7 +233,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
 
       {/* Saudação */}
       <div>
-        <h1 className="text-3xl font-bold">{saudacao}, {primeiroNome}!</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">{saudacao}, {primeiroNome}!</h1>
         <p className="text-muted-foreground">
           {role === 'DT' && dtSubtitle
             ? `Professor Diretor de Turma — ${dtSubtitle}`
@@ -246,7 +246,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
       </div>
 
       {/* Cards de resumo */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
         {role === 'ADMIN_SME' && (
           <Card>
@@ -362,7 +362,7 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
 
       {/* DT: Pendências por aluno */}
       {role === 'DT' && (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2">
 
           <Card>
             <CardHeader className="pb-3">
@@ -381,8 +381,31 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
               {dtBioStudents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum aluno ativo encontrado na turma.</p>
               ) : (
-                <div className="max-h-60 overflow-y-auto">
-                  <Table>
+                <>
+                  <div className="space-y-3 md:hidden">
+                    {dtBioStudents.map((s) => (
+                      <div key={s.id} className="rounded-lg border p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-2">
+                            <p className="text-sm font-medium break-words">{s.name}</p>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <span>Matrícula: {s.enrollment_code ?? '—'}</span>
+                              <Badge variant={s.bioCompleted ? 'success' : 'warning'}>
+                                {s.bioCompleted ? 'Completa' : 'Pendente'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <Link href={`/dt/ficha-biografica?turmaId=${profile.classroom_id}&alunoId=${s.id}`}>
+                            <Button variant="ghost" size="icon" className="shrink-0">
+                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="hidden max-h-60 overflow-y-auto md:block">
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Aluno</TableHead>
@@ -413,8 +436,9 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
-                </div>
+                    </Table>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -436,8 +460,28 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
               {dtPendingPhotos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Todos os alunos têm foto cadastrada!</p>
               ) : (
-                <div className="max-h-60 overflow-y-auto">
-                  <Table>
+                <>
+                  <div className="space-y-3 md:hidden">
+                    {dtPendingPhotos.map((s) => (
+                      <div key={s.id} className="rounded-lg border p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-1">
+                            <p className="text-sm font-medium break-words">{s.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Matrícula: {s.enrollment_code ?? '—'}
+                            </p>
+                          </div>
+                          <Link href={`/dt/registro-fotografico?turmaId=${profile.classroom_id}`}>
+                            <Button variant="ghost" size="icon" className="shrink-0">
+                              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="hidden max-h-60 overflow-y-auto md:block">
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Aluno</TableHead>
@@ -462,8 +506,9 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
-                </div>
+                    </Table>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -480,7 +525,63 @@ VALUES ('${user?.id ?? 'SEU_USER_ID'}', 'ADMIN_SME', 'Seu Nome');`}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="space-y-3 md:hidden">
+              {classroomStats.map((cs: any) => {
+                const rowBioPct = cs.total_students > 0
+                  ? Math.round((cs.bio_completed / cs.total_students) * 100)
+                  : 0;
+                const rowPhotoPct = cs.total_students > 0
+                  ? Math.round((cs.photos_uploaded / cs.total_students) * 100)
+                  : 0;
+
+                return (
+                  <div key={cs.classroom_id} className="rounded-lg border p-4">
+                    <div className="space-y-3">
+                      <div>
+                        {role === 'ADMIN_SME' && (
+                          <p className="text-xs text-muted-foreground">{cs.school_name ?? '—'}</p>
+                        )}
+                        <p className="text-sm font-semibold">{cs.year_grade} {cs.label}</p>
+                        <p className="text-xs text-muted-foreground">{cs.shift}</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-md bg-muted/50 p-2">
+                          <p className="text-xs text-muted-foreground">Alunos</p>
+                          <p className="font-medium">{cs.total_students}</p>
+                        </div>
+                        <div className="rounded-md bg-muted/50 p-2">
+                          <p className="text-xs text-muted-foreground">Fichas OK</p>
+                          <p className="font-medium text-green-600">{cs.bio_completed}</p>
+                        </div>
+                        <div className="rounded-md bg-muted/50 p-2">
+                          <p className="text-xs text-muted-foreground">Pendentes</p>
+                          <p className="font-medium text-yellow-700">{cs.bio_pending}</p>
+                        </div>
+                        <div className="rounded-md bg-muted/50 p-2">
+                          <p className="text-xs text-muted-foreground">Fotos</p>
+                          <p className="font-medium">
+                            {cs.photos_uploaded}/{cs.total_students} <span className="text-xs text-muted-foreground">({rowPhotoPct}%)</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Progresso das fichas</span>
+                          <span>{rowBioPct}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${rowBioPct}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">

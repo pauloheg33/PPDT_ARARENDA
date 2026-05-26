@@ -230,10 +230,10 @@ export default function AlunosPage() {
     : null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Alunos</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Alunos</h1>
           <p className="text-muted-foreground">Cadastro e consulta de alunos</p>
           {fixedSchoolName && (
             <Badge variant="outline" className="mt-2">
@@ -250,8 +250,8 @@ export default function AlunosPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-4">
-        <div className="flex-1 min-w-[200px]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+        <div className="min-w-0 flex-1">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -270,7 +270,7 @@ export default function AlunosPage() {
           }}
           disabled={isSchoolScoped}
         >
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="Escola" />
           </SelectTrigger>
           <SelectContent>
@@ -283,7 +283,7 @@ export default function AlunosPage() {
           </SelectContent>
         </Select>
         <Select value={filterClassroom} onValueChange={setFilterClassroom}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="Turma" />
           </SelectTrigger>
           <SelectContent>
@@ -304,6 +304,66 @@ export default function AlunosPage() {
           ) : filtered.length === 0 ? (
             <p className="text-muted-foreground">Nenhum aluno encontrado.</p>
           ) : (
+            <>
+            <div className="space-y-3 md:hidden">
+              {filtered.map((s) => (
+                <div key={s.id} className="rounded-lg border p-3">
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Link
+                        href={`/admin/alunos/ficha-biografica?alunoId=${s.id}`}
+                        className="block text-sm font-medium hover:text-primary hover:underline underline-offset-4"
+                      >
+                        {s.name}
+                      </Link>
+                      <p className="text-xs text-muted-foreground">
+                        Matrícula: {s.enrollment_code || '—'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Turma: {(s as any).classrooms?.year_grade} {(s as any).classrooms?.label}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Escola: {(s as any).classrooms?.schools?.name ?? '—'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={s.status === 'Ativo' ? 'success' : 'secondary'}>
+                        {s.status}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={`/admin/alunos/ficha-biografica?alunoId=${s.id}`}>
+                        <Button variant="outline" size="sm">
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver ficha
+                        </Button>
+                      </Link>
+                      {isDt && (
+                        <Link href={`/dt/ficha-biografica?turmaId=${s.classroom_id}&alunoId=${s.id}`}>
+                          <Button variant="outline" size="sm">
+                            <FilePenLine className="mr-2 h-4 w-4 text-primary" />
+                            Editar ficha
+                          </Button>
+                        </Link>
+                      )}
+                      {canEdit && (
+                        <Button variant="outline" size="sm" onClick={() => openEdit(s)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar aluno
+                        </Button>
+                      )}
+                      {isAdmin && (
+                        <Button variant="ghost" size="sm" onClick={() => handleDelete(s)}>
+                          <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                          Excluir
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -366,6 +426,8 @@ export default function AlunosPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
           <p className="mt-4 text-sm text-muted-foreground">
             {filtered.length} aluno(s) encontrado(s)

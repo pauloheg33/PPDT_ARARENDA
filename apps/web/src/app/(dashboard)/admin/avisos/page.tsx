@@ -202,7 +202,7 @@ export default function AdminAvisosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Avisos</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Avisos</h1>
         <p className="text-muted-foreground">
           Envie comunicados internos para todos os Professores Diretores de Turma.
         </p>
@@ -238,7 +238,7 @@ export default function AdminAvisosPage() {
               />
             </div>
 
-            <div className="space-y-2 max-w-sm">
+            <div className="max-w-sm space-y-2">
               <Label>Válido até</Label>
               <Input
                 type="datetime-local"
@@ -271,6 +271,56 @@ export default function AdminAvisosPage() {
           ) : groupedNotices.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum aviso enviado até agora.</p>
           ) : (
+            <>
+            <div className="space-y-3 md:hidden">
+              {groupedNotices.map((notice) => {
+                const isExpired = notice.expiresAt ? new Date(notice.expiresAt) <= new Date() : false;
+                const isActive = notice.isActive && !isExpired;
+
+                return (
+                  <div key={notice.groupId} className="rounded-lg border p-3">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="font-medium">{notice.title}</p>
+                        <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
+                          {notice.message}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                        <div>
+                          <p>Destinatários</p>
+                          <p className="font-medium text-foreground">{notice.recipientCount}</p>
+                        </div>
+                        <div>
+                          <p>Leituras</p>
+                          <p className="font-medium text-foreground">{notice.readCount}/{notice.recipientCount}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p>Validade</p>
+                          <p className="font-medium text-foreground">{formatDateTime(notice.expiresAt)}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Badge variant={isActive ? 'success' : 'outline'}>
+                          {isActive ? 'Ativo' : 'Encerrado'}
+                        </Badge>
+                        {isActive && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeactivateNotice(notice.groupId)}
+                          >
+                            <StopCircle className="mr-2 h-4 w-4 text-destructive" />
+                            Encerrar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -319,6 +369,8 @@ export default function AdminAvisosPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>

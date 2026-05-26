@@ -727,7 +727,7 @@ export default function AdminInstrumentaisPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Instrumentais do PPDT</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Instrumentais do PPDT</h1>
           <p className="text-muted-foreground">Monitoramento de envios e gestão da biblioteca</p>
         </div>
 
@@ -792,11 +792,11 @@ export default function AdminInstrumentaisPage() {
       </div>
 
       <Tabs defaultValue="monitoramento">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="monitoramento" className="flex items-center gap-2">
+        <TabsList className="flex w-full flex-nowrap gap-1 overflow-x-auto md:grid md:grid-cols-2">
+          <TabsTrigger value="monitoramento" className="flex min-w-fit items-center gap-2 md:min-w-0">
             <BarChart3 className="h-4 w-4" /> Monitoramento
           </TabsTrigger>
-          <TabsTrigger value="biblioteca" className="flex items-center gap-2">
+          <TabsTrigger value="biblioteca" className="flex min-w-fit items-center gap-2 md:min-w-0">
             <Library className="h-4 w-4" /> Biblioteca de Modelos
           </TabsTrigger>
         </TabsList>
@@ -805,7 +805,7 @@ export default function AdminInstrumentaisPage() {
         <TabsContent value="monitoramento" className="space-y-4 pt-4">
 
           {/* Indicadores rápidos */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
             <Card>
               <CardContent className="pt-4 pb-3">
                 <p className="text-2xl font-bold">{uploads.length}</p>
@@ -840,12 +840,12 @@ export default function AdminInstrumentaisPage() {
 
           {/* Filtros */}
           <div className="space-y-3">
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Select
                 value={filterSchool || '__all'}
                 onValueChange={(v) => setFilterSchool(v === '__all' ? '' : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-full sm:w-52">
                   <SelectValue placeholder="Filtrar por escola" />
                 </SelectTrigger>
                 <SelectContent>
@@ -860,7 +860,7 @@ export default function AdminInstrumentaisPage() {
                 value={filterTipo || '__all'}
                 onValueChange={(v) => setFilterTipo(v === '__all' ? '' : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-full sm:w-52">
                   <SelectValue placeholder="Filtrar por tipo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -875,7 +875,7 @@ export default function AdminInstrumentaisPage() {
                 value={filterUploader || '__all'}
                 onValueChange={(v) => setFilterUploader(v === '__all' ? '' : v)}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-full sm:w-52">
                   <SelectValue placeholder="Filtrar por Professor DT" />
                 </SelectTrigger>
                 <SelectContent>
@@ -892,7 +892,7 @@ export default function AdminInstrumentaisPage() {
                 value={filterReviewed}
                 onValueChange={(v) => setFilterReviewed(v as 'todos' | 'revisados' | 'pendentes')}
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-full sm:w-52">
                   <SelectValue placeholder="Status de revisão" />
                 </SelectTrigger>
                 <SelectContent>
@@ -916,14 +916,14 @@ export default function AdminInstrumentaisPage() {
               )}
             </div>
             
-            <div className="flex flex-wrap gap-3">
+            <div className="grid gap-3 sm:flex sm:flex-wrap">
               <div className="space-y-1">
                 <Label className="text-xs">Data de: </Label>
                 <Input
                   type="date"
                   value={filterDateFrom}
                   onChange={(e) => setFilterDateFrom(e.target.value)}
-                  className="w-40"
+                  className="w-full sm:w-40"
                 />
               </div>
               <div className="space-y-1">
@@ -932,7 +932,7 @@ export default function AdminInstrumentaisPage() {
                   type="date"
                   value={filterDateTo}
                   onChange={(e) => setFilterDateTo(e.target.value)}
-                  className="w-40"
+                  className="w-full sm:w-40"
                 />
               </div>
             </div>
@@ -945,6 +945,76 @@ export default function AdminInstrumentaisPage() {
               ) : filteredUploads.length === 0 ? (
                 <p className="text-muted-foreground text-sm">Nenhum envio encontrado.</p>
               ) : (
+                <>
+                <div className="space-y-3 md:hidden">
+                  {filteredUploads.map((u) => {
+                    const reviewSummary = getReviewSummary(u);
+
+                    return (
+                      <div key={u.id} className="rounded-lg border p-3">
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-sm font-medium break-words">{getUploaderName(u.uploaded_by)}</p>
+                            <p className="text-xs text-muted-foreground">{u.school?.name ?? '—'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {u.classroom ? `${u.classroom.year_grade} ${u.classroom.label}` : '—'}
+                            </p>
+                            {u.student?.name && (
+                              <p className="text-xs text-muted-foreground">Aluno: {u.student.name}</p>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="outline">{TIPO_LABELS[u.type]}</Badge>
+                            <span>{new Date(u.reference_date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+                          </div>
+                          <div>
+                            {u.reviewed_at ? (
+                              <div className="space-y-1">
+                                <Badge variant="default" className="bg-green-600">
+                                  {u.reviewed_by ? '✓ Revisado' : '✓ Revisado automaticamente'}
+                                </Badge>
+                                <div className="text-xs text-muted-foreground">
+                                  <p>{reviewSummary?.reviewer ?? '—'}</p>
+                                  {reviewSummary?.reviewedAt && <p>{reviewSummary.reviewedAt}</p>}
+                                  {reviewSummary?.notes && <p className="whitespace-pre-line">{reviewSummary.notes}</p>}
+                                </div>
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="text-yellow-600">⏳ Pendente</Badge>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handleOpenPdf(u)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Ver
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleDownloadPdf(u)}>
+                              <Download className="mr-2 h-4 w-4" />
+                              Baixar
+                            </Button>
+                            {canManageUploads && !u.reviewed_at && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => { setReviewDialog(u); setReviewNotes(''); }}
+                              >
+                                <BarChart3 className="mr-2 h-4 w-4" />
+                                Revisar
+                              </Button>
+                            )}
+                            {canManageUploads && (
+                              <Button variant="ghost" size="sm" onClick={() => handleDeleteUpload(u)}>
+                                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                Excluir
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1025,6 +1095,8 @@ export default function AdminInstrumentaisPage() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -1047,6 +1119,63 @@ export default function AdminInstrumentaisPage() {
               ) : modelos.length === 0 ? (
                 <p className="text-muted-foreground text-sm">Nenhum modelo cadastrado ainda.</p>
               ) : (
+                <>
+                <div className="space-y-3 md:hidden">
+                  {modelos.map((m) => (
+                    <div key={m.id} className={`rounded-lg border p-3 ${!m.active ? 'opacity-50' : ''}`}>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="font-medium">{m.name}</p>
+                          {m.description && (
+                            <p className="text-xs text-muted-foreground">{m.description}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary">
+                            {m.file_type === 'word' ? 'Word' : m.file_type === 'pdf' ? 'PDF' : 'Outro'}
+                          </Badge>
+                          <Badge variant={m.active ? 'default' : 'outline'}>
+                            {m.active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          <p>{CATEGORY_LABELS[m.category]}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(m.external_url, '_blank')}
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Abrir
+                          </Button>
+                          {isAdminSme && (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => openEditModelo(m)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Editar
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => handleToggleModelo(m)}>
+                                {m.active ? (
+                                  <ToggleRight className="mr-2 h-4 w-4 text-primary" />
+                                ) : (
+                                  <ToggleLeft className="mr-2 h-4 w-4 text-muted-foreground" />
+                                )}
+                                {m.active ? 'Desativar' : 'Ativar'}
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleDeleteModelo(m)}>
+                                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                Excluir
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden md:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1118,6 +1247,8 @@ export default function AdminInstrumentaisPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+                </>
               )}
             </CardContent>
           </Card>

@@ -58,10 +58,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (profile && !isRouteAllowed(pathname, profile.role)) return null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <main className="flex-1 overflow-auto p-4 md:p-8">
-        <div className="mb-4 flex justify-end">
+      <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 pt-20 sm:p-4 sm:pt-20 md:p-8">
+        <div className="mb-4 flex justify-end md:mb-6">
           <NotificationBell />
         </div>
         {children}
