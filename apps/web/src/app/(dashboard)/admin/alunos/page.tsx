@@ -121,8 +121,8 @@ export default function AlunosPage() {
       birthdate: '',
       responsible_name: '',
       responsible_phone: '',
-      school_id: '',
-      classroom_id: '',
+      school_id: isDt ? profile?.school_id ?? '' : '',
+      classroom_id: isDt ? profile?.classroom_id ?? '' : '',
       status: 'Ativo',
     });
     setDialogOpen(true);
@@ -215,10 +215,15 @@ export default function AlunosPage() {
     return matchSearch && matchSchool && matchClass;
   });
 
-  const formClassrooms =
-    form.school_id
+  const formClassrooms = isDt && profile?.classroom_id
+    ? classrooms.filter((c) => c.id === profile.classroom_id)
+    : form.school_id
       ? classrooms.filter((c) => c.school_id === form.school_id)
       : classrooms;
+
+  const formSchools = isDt && profile?.school_id
+    ? schools.filter((school) => school.id === profile.school_id)
+    : schools;
 
   const filterClassrooms =
     (isSchoolScoped && profile?.school_id ? profile.school_id : filterSchool) !== 'all'
@@ -470,12 +475,13 @@ export default function AlunosPage() {
               <Select
                 value={form.school_id}
                 onValueChange={(v) => setForm({ ...form, school_id: v, classroom_id: '' })}
+                disabled={isDt}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {schools.map((s) => (
+                  {formSchools.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
                     </SelectItem>
@@ -485,7 +491,7 @@ export default function AlunosPage() {
             </div>
             <div className="space-y-2">
               <Label>Turma *</Label>
-              <Select value={form.classroom_id} onValueChange={(v) => setForm({ ...form, classroom_id: v })}>
+              <Select value={form.classroom_id} onValueChange={(v) => setForm({ ...form, classroom_id: v })} disabled={isDt}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
