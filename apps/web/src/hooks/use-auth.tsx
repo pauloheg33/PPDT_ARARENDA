@@ -85,8 +85,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
+    setLoading(true);
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error || !data.session || !data.user) {
+      setLoading(false);
+      return {
+        error: (error as Error | null) ?? new Error('Não foi possível criar a sessão de acesso.'),
+      };
+    }
+
+    // Não dependa apenas do onAuthStateChange para atualizar o contexto. Em uma
+    // navegação rápida, o dashboard pode montar antes desse evento e interpretar
+    // user === null como sessão encerrada, redirecionando de volta ao login.
+    setSession(data.session);
+    setUser(data.user);
+    await fetchProfile(data.user.id);
+    setLoading(false);
+
+    return { error: null };
   }
 
   async function signOut() {
